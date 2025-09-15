@@ -561,14 +561,9 @@ function HomePage() {
     <div className="min-h-screen bg-gray-100 dark:bg-neutral-800">
       {/* Top Bar */}
       <div className="fixed top-0 left-0 right-0 z-30 bg-white/50 dark:bg-neutral-900/50 backdrop-blur-sm border-b border-gray-200/30 dark:border-neutral-700/30 draggable">
-        {/* Mac traffic light area - reserve space */}
-        {window.navigator.userAgent.toLowerCase().includes('mac') && (
-          <div className="h-6 w-full" />
-        )}
-        
-        {/* Main header content below traffic lights */}
+        {/* Main header content - single row layout */}
         <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4" style={{ paddingLeft: window.navigator.userAgent.toLowerCase().includes('mac') ? '80px' : '0' }}>
             {/* Document sidebar toggle */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -656,9 +651,9 @@ function HomePage() {
       </div>
 
       {/* Main Content */}
-      <div className={`p-8 relative bg-gray-100 dark:bg-neutral-800 min-h-full ${window.navigator.userAgent.toLowerCase().includes('mac') ? 'pt-32' : 'pt-24'}`}>
+      <div className="p-8 relative bg-gray-100 dark:bg-neutral-800 min-h-full pt-24">
         {/* Document Sidebar */}
-        <div className={`fixed ${window.navigator.userAgent.toLowerCase().includes('mac') ? 'top-32' : 'top-24'} left-8 bottom-8 w-80 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-10 overflow-hidden ${
+        <div className={`fixed top-24 left-8 bottom-8 w-80 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-10 overflow-hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-96'
         }`}>
           <div className="p-6 border-b border-gray-200 dark:border-neutral-700">
@@ -779,7 +774,7 @@ function HomePage() {
         </div>
 
         {/* AI suggestions sidebar */}
-        <div className={`fixed ${window.navigator.userAgent.toLowerCase().includes('mac') ? 'top-32' : 'top-24'} right-8 bottom-8 w-80 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-10 flex flex-col ${
+        <div className={`fixed top-24 right-8 bottom-8 w-80 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-10 flex flex-col ${
           aiSidebarOpen ? 'translate-x-0' : 'translate-x-96'
         }`}>
           {/* Header */}
@@ -863,7 +858,7 @@ function HomePage() {
 
         {/* Floating Formatting Toolbar */}
         {viewMode === 'edit' && (
-          <div className={`fixed ${window.navigator.userAgent.toLowerCase().includes('mac') ? 'top-28' : 'top-20'} left-1/2 transform -translate-x-1/2 z-20 bg-white dark:bg-neutral-700 shadow-lg rounded-lg px-2 py-1.5 flex items-center gap-1 border border-gray-200 dark:border-neutral-600`}>
+          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-20 bg-white dark:bg-neutral-700 shadow-lg rounded-lg px-2 py-1.5 flex items-center gap-1 border border-gray-200 dark:border-neutral-600">
               {/* Heading dropdown */}
               <select 
                 onChange={(e) => e.target.value && insertHeading(parseInt(e.target.value))}
