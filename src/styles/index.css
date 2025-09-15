@@ -18,10 +18,34 @@
   .draggable {
     -webkit-app-region: drag;
   }
-  
+
   /* Make interactive elements and content areas non-draggable */
   button, a, input, textarea, select, .no-drag, .draggable button, .draggable a {
     -webkit-app-region: no-drag;
+  }
+
+  /* Contenteditable placeholder */
+  .markdown-syntax-highlight:empty:before {
+    content: 'Start writing markdown...';
+    color: #9ca3af;
+  }
+
+  .dark .markdown-syntax-highlight:empty:before {
+    color: #6b7280;
+  }
+
+  /* Ensure proper cursor behavior in contenteditable */
+  .markdown-syntax-highlight {
+    caret-color: currentColor;
+  }
+
+  /* Style for markdown syntax highlighting spans */
+  .markdown-syntax-highlight span.text-gray-400 {
+    opacity: 0.7;
+  }
+
+  .dark .markdown-syntax-highlight span.text-gray-500 {
+    opacity: 0.6;
   }
 }
 

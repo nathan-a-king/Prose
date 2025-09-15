@@ -11,6 +11,53 @@ function preprocessMarkdown(text) {
   return text.replace(/\n\s*\n\s*\n/g, '\n\n&nbsp;\n\n')
 }
 
+// Function to apply syntax highlighting for markdown
+function highlightMarkdownSyntax(text) {
+  if (!text) return ''
+
+  // Escape HTML
+  const escapeHtml = (str) => {
+    const div = document.createElement('div')
+    div.textContent = str
+    return div.innerHTML
+  }
+
+  let html = escapeHtml(text)
+
+  // Apply highlighting to markdown syntax with lighter gray
+  const patterns = [
+    // Headers (at line start)
+    { regex: /^(#{1,6}\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Bold markers
+    { regex: /(\*\*|__)(.*?)(\*\*|__)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Italic markers (single * or _)
+    { regex: /(\*|_)([^\*_]+?)(\*|_)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Strikethrough
+    { regex: /(~~)(.*?)(~~)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Inline code
+    { regex: /(`)([^`]+?)(`)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Code blocks
+    { regex: /(```)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Blockquote (at line start)
+    { regex: /^(&gt;\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Unordered lists (at line start)
+    { regex: /^([\*\-\+]\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Ordered lists (at line start)
+    { regex: /^(\d+\.\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Link brackets
+    { regex: /(\[)([^\]]+?)(\])/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    { regex: /(\()([^\)]+?)(\))/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Horizontal rules (full line)
+    { regex: /^(---|\*\*\*|___)$/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+  ]
+
+  patterns.forEach(({ regex, replacement }) => {
+    html = html.replace(regex, replacement)
+  })
+
+  return html
+}
+
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
   const [text, setText] = useState('')
@@ -25,6 +72,7 @@ function HomePage() {
   const [aiQuestionLoading, setAiQuestionLoading] = useState(false)
   const autoSaveTimeout = useRef(null)
   const textareaRef = useRef(null)
+  const editorRef = useRef(null)
   const [documents, setDocuments] = useState([])
   const [loadingDocuments, setLoadingDocuments] = useState(true)
   const [editingDocId, setEditingDocId] = useState(null)
@@ -126,32 +174,22 @@ function HomePage() {
     }
   }, [text])
 
-  // Auto-resize textarea on mount and when text changes
+  // Auto-resize textarea
   useLayoutEffect(() => {
     if (textareaRef.current && viewMode === 'edit') {
       // Use requestAnimationFrame to defer the resize
       requestAnimationFrame(() => {
         if (textareaRef.current) {
           const scrollTop = window.scrollY || document.documentElement.scrollTop
-          const cursorPos = textareaRef.current.selectionStart
 
-          // Temporarily disable scroll restoration to prevent interference
-          const scrollBehavior = document.documentElement.style.scrollBehavior
-          document.documentElement.style.scrollBehavior = 'auto'
-
+          // Reset height to get correct scrollHeight
           textareaRef.current.style.height = 'auto'
           const scrollHeight = textareaRef.current.scrollHeight
           // Add a small buffer (2px) to prevent the minimal scrollbar issue
           textareaRef.current.style.height = (scrollHeight + 2) + 'px'
 
-          // Force scroll position
+          // Maintain scroll position
           window.scrollTo({ top: scrollTop, behavior: 'instant' })
-
-          // Restore cursor position
-          textareaRef.current.setSelectionRange(cursorPos, cursorPos)
-
-          // Restore scroll behavior
-          document.documentElement.style.scrollBehavior = scrollBehavior
         }
       })
     }
@@ -490,17 +528,17 @@ function HomePage() {
   // Formatting helper functions
   const insertFormatting = (before, after = '') => {
     if (!textareaRef.current) return
-    
+
     const textarea = textareaRef.current
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
     const selectedText = text.substring(start, end)
     const beforeText = text.substring(0, start)
     const afterText = text.substring(end)
-    
+
     const newText = beforeText + before + selectedText + after + afterText
     setText(newText)
-    
+
     // Set cursor position after formatting
     setTimeout(() => {
       textarea.focus()
@@ -514,21 +552,21 @@ function HomePage() {
 
   const insertHeading = (level) => {
     if (!textareaRef.current) return
-    
+
     const textarea = textareaRef.current
     const start = textarea.selectionStart
     const beforeText = text.substring(0, start)
     const afterText = text.substring(start)
-    
+
     // Find the start of the current line
     const lineStart = beforeText.lastIndexOf('\n') + 1
     const lineBeforeText = text.substring(0, lineStart)
     const currentLine = text.substring(lineStart)
-    
+
     const headingPrefix = '#'.repeat(level) + ' '
     const newText = lineBeforeText + headingPrefix + currentLine
     setText(newText)
-    
+
     setTimeout(() => {
       textarea.focus()
       textarea.setSelectionRange(lineStart + headingPrefix.length, lineStart + headingPrefix.length)
@@ -537,20 +575,20 @@ function HomePage() {
 
   const insertList = (ordered = false) => {
     if (!textareaRef.current) return
-    
+
     const textarea = textareaRef.current
     const start = textarea.selectionStart
     const beforeText = text.substring(0, start)
     const afterText = text.substring(start)
-    
+
     const lineStart = beforeText.lastIndexOf('\n') + 1
     const lineBeforeText = text.substring(0, lineStart)
     const currentLine = text.substring(lineStart)
-    
+
     const listPrefix = ordered ? '1. ' : '- '
     const newText = lineBeforeText + listPrefix + currentLine
     setText(newText)
-    
+
     setTimeout(() => {
       textarea.focus()
       textarea.setSelectionRange(lineStart + listPrefix.length, lineStart + listPrefix.length)
@@ -1020,26 +1058,45 @@ function HomePage() {
         {/* Main content */}
         <div className="w-[800px] mx-auto bg-white dark:bg-neutral-700 shadow-xl rounded-lg">
           {viewMode === 'edit' && (
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value)
-                // Resize is handled by useLayoutEffect to avoid scrolling issues
-              }}
-              onKeyDown={(e) => {
-                // Handle Cmd+A (Mac) or Ctrl+A (Windows/Linux) for select all
-                if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-                  e.preventDefault()
-                  if (textareaRef.current) {
-                    textareaRef.current.select()
+            <div className="relative">
+              {/* Syntax highlighting overlay - behind the textarea */}
+              <div
+                className="absolute inset-0 p-12 text-lg font-light font-sans pointer-events-none overflow-hidden text-gray-900 dark:text-gray-100"
+                style={{
+                  lineHeight: '1.9',
+                  fontFamily: 'Avenir, Avenir Next, -apple-system, sans-serif',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}
+                dangerouslySetInnerHTML={{ __html: highlightMarkdownSyntax(text) || '<span class="text-gray-400 dark:text-gray-500">Start writing markdown...</span>' }}
+              />
+              {/* Actual textarea - transparent text but visible caret */}
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value)
+                }}
+                onKeyDown={(e) => {
+                  // Handle Cmd+A (Mac) or Ctrl+A (Windows/Linux) for select all
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+                    e.preventDefault()
+                    if (textareaRef.current) {
+                      textareaRef.current.select()
+                    }
                   }
-                }
-              }}
-              placeholder="Start writing markdown..."
-              className="w-full p-12 bg-transparent border-0 resize-none focus:outline-none text-gray-900 dark:text-gray-100 text-lg font-light placeholder:text-gray-400 dark:placeholder:text-gray-500 font-sans"
-              style={{ minHeight: '11in', lineHeight: '1.9', fontFamily: 'Avenir, Avenir Next, -apple-system, sans-serif' }}
-            />
+                }}
+                placeholder=""
+                className="relative w-full p-12 bg-transparent border-0 resize-none focus:outline-none text-transparent text-lg font-light font-sans caret-gray-900 dark:caret-gray-100"
+                style={{
+                  minHeight: '11in',
+                  lineHeight: '1.9',
+                  fontFamily: 'Avenir, Avenir Next, -apple-system, sans-serif',
+                  caretColor: isDarkMode ? '#f3f4f6' : '#111827'
+                }}
+                spellCheck="false"
+              />
+            </div>
             )}
             
             {viewMode === 'preview' && (
