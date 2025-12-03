@@ -3,7 +3,10 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { useTheme } from '../contexts/ThemeContext'
+import { useAgents } from '../contexts/AgentContext'
 import { documentApi } from '../services/documentApi'
+import AgentPanel from '../components/agents/AgentPanel'
+import ChangeProposalPanel from '../components/agents/ChangeProposalPanel'
 
 // Function to preprocess markdown to preserve blank lines
 function preprocessMarkdown(text) {
@@ -60,12 +63,15 @@ function highlightMarkdownSyntax(text) {
 
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
+  const { initializeDocument, updateDocumentContent, getPendingProposals } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
   const [saveStatus, setSaveStatus] = useState('') // '', 'saving', 'saved'
   const [viewMode, setViewMode] = useState('edit') // 'edit', 'preview'
   const [aiSidebarOpen, setAiSidebarOpen] = useState(false)
+  const [agentPanelOpen, setAgentPanelOpen] = useState(false)
+  const [proposalPanelOpen, setProposalPanelOpen] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState([])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiQuestion, setAiQuestion] = useState('')
@@ -107,9 +113,20 @@ function HomePage() {
         setLoadingDocuments(false)
       }
     }
-    
+
     loadDocuments()
   }, [])
+
+  // Initialize agent document state when text changes
+  useEffect(() => {
+    if (text) {
+      const currentDoc = documents.find(doc => doc.id === currentDocId)
+      initializeDocument(text, {
+        title: currentDoc?.title || 'Untitled Document',
+        documentId: currentDocId
+      })
+    }
+  }, [text, currentDocId, documents, initializeDocument])
 
   const saveDocument = async () => {
     if (!text.trim()) return
@@ -684,6 +701,35 @@ function HomePage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </button>
+
+          {/* Agent Pipeline toggle */}
+          <button
+            onClick={() => setAgentPanelOpen(!agentPanelOpen)}
+            className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ${
+              agentPanelOpen ? 'bg-blue-100 dark:bg-blue-900/20' : ''
+            }`}
+            title="Toggle Agent Pipeline"
+          >
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+            </svg>
+          </button>
+
+          {/* Change Proposals toggle */}
+          <button
+            onClick={() => setProposalPanelOpen(!proposalPanelOpen)}
+            className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors relative ${
+              proposalPanelOpen ? 'bg-blue-100 dark:bg-blue-900/20' : ''
+            }`}
+            title="Toggle Change Proposals"
+          >
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            {getPendingProposals().length > 0 && (
+              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
+          </button>
           </div>
         </div>
       </div>
@@ -810,6 +856,23 @@ function HomePage() {
             )}
           </div>
         </div>
+
+        {/* Agent Panel */}
+        {agentPanelOpen && (
+          <div className="fixed top-24 left-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg z-20">
+            <AgentPanel onClose={() => setAgentPanelOpen(false)} />
+          </div>
+        )}
+
+        {/* Change Proposal Panel */}
+        {proposalPanelOpen && (
+          <div className="fixed top-24 right-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg z-20">
+            <ChangeProposalPanel
+              onClose={() => setProposalPanelOpen(false)}
+              onApplyChange={(newContent) => setText(newContent)}
+            />
+          </div>
+        )}
 
         {/* AI suggestions sidebar */}
         <div className={`fixed top-24 right-8 bottom-8 w-80 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-10 flex flex-col ${
