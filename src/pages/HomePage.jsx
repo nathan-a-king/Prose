@@ -642,7 +642,13 @@ function HomePage() {
           <div className="flex items-center gap-4" style={{ paddingLeft: window.navigator.userAgent.toLowerCase().includes('mac') ? '80px' : '0' }}>
             {/* Document sidebar toggle */}
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={() => {
+                setSidebarOpen(!sidebarOpen)
+                if (!sidebarOpen) {
+                  setAgentPanelOpen(false)
+                  setProposalPanelOpen(false)
+                }
+              }}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
               title="Toggle documents"
             >
@@ -725,7 +731,13 @@ function HomePage() {
 
           {/* Agent Pipeline toggle */}
           <button
-            onClick={() => setAgentPanelOpen(!agentPanelOpen)}
+            onClick={() => {
+              setAgentPanelOpen(!agentPanelOpen)
+              if (!agentPanelOpen) {
+                setSidebarOpen(false)
+                setProposalPanelOpen(false)
+              }
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ${
               agentPanelOpen ? 'bg-blue-100 dark:bg-blue-900/20' : ''
             }`}
@@ -738,7 +750,13 @@ function HomePage() {
 
           {/* Change Proposals toggle */}
           <button
-            onClick={() => setProposalPanelOpen(!proposalPanelOpen)}
+            onClick={() => {
+              setProposalPanelOpen(!proposalPanelOpen)
+              if (!proposalPanelOpen) {
+                setSidebarOpen(false)
+                setAgentPanelOpen(false)
+              }
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors relative ${
               proposalPanelOpen ? 'bg-blue-100 dark:bg-blue-900/20' : ''
             }`}
@@ -879,21 +897,21 @@ function HomePage() {
         </div>
 
         {/* Agent Panel */}
-        {agentPanelOpen && (
-          <div className="fixed top-24 left-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg z-20">
-            <AgentPanel onClose={() => setAgentPanelOpen(false)} />
-          </div>
-        )}
+        <div className={`fixed top-24 left-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
+          agentPanelOpen ? 'translate-x-0' : '-translate-x-[28rem]'
+        }`}>
+          <AgentPanel onClose={() => setAgentPanelOpen(false)} />
+        </div>
 
         {/* Change Proposal Panel */}
-        {proposalPanelOpen && (
-          <div className="fixed top-24 right-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg z-20">
-            <ChangeProposalPanel
-              onClose={() => setProposalPanelOpen(false)}
-              onApplyChange={(newContent) => setText(newContent)}
-            />
-          </div>
-        )}
+        <div className={`fixed top-24 right-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
+          proposalPanelOpen ? 'translate-x-0' : 'translate-x-[28rem]'
+        }`}>
+          <ChangeProposalPanel
+            onClose={() => setProposalPanelOpen(false)}
+            onApplyChange={(newContent) => setText(newContent)}
+          />
+        </div>
 
         {/* AI suggestions sidebar */}
         <div className={`fixed top-24 right-8 bottom-8 w-80 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-10 flex flex-col ${

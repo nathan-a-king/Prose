@@ -134,7 +134,7 @@ export default function ChangeProposalPanel({ onClose, onApplyChange }) {
           </div>
         ) : (
           <div className="space-y-6">
-            {Object.entries(proposalsByAgent).map(([agentId, proposals]) => (
+            {Object.entries(proposalsByAgent).map(([agentId, proposals], index) => (
               <AgentProposalGroup
                 key={agentId}
                 agentId={agentId}
@@ -144,6 +144,7 @@ export default function ChangeProposalPanel({ onClose, onApplyChange }) {
                 onApproveAll={() => handleApproveAllFromAgent(agentId)}
                 expandedProposalId={expandedProposalId}
                 setExpandedProposalId={setExpandedProposalId}
+                index={index}
               />
             ))}
           </div>
@@ -163,13 +164,17 @@ function AgentProposalGroup({
   onReject,
   onApproveAll,
   expandedProposalId,
-  setExpandedProposalId
+  setExpandedProposalId,
+  index = 0
 }) {
   const pendingProposals = proposals.filter(p => p.status === 'pending')
   const hasPending = pendingProposals.length > 0
 
   return (
-    <div className="border border-gray-200 dark:border-neutral-700 rounded-lg p-4">
+    <div
+      className="border border-gray-200 dark:border-neutral-700 rounded-lg p-4 animate-slide-up"
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -190,7 +195,7 @@ function AgentProposalGroup({
       </div>
 
       <div className="space-y-2">
-        {proposals.map(proposal => (
+        {proposals.map((proposal, proposalIndex) => (
           <ProposalCard
             key={proposal.id}
             proposal={proposal}
@@ -200,6 +205,7 @@ function AgentProposalGroup({
             onToggleExpand={() => setExpandedProposalId(
               expandedProposalId === proposal.id ? null : proposal.id
             )}
+            index={proposalIndex}
           />
         ))}
       </div>
@@ -210,7 +216,7 @@ function AgentProposalGroup({
 /**
  * Proposal Card Component
  */
-function ProposalCard({ proposal, onApprove, onReject, isExpanded, onToggleExpand }) {
+function ProposalCard({ proposal, onApprove, onReject, isExpanded, onToggleExpand, index = 0 }) {
   const priorityColors = {
     [CHANGE_PRIORITIES.CRITICAL]: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
     [CHANGE_PRIORITIES.IMPORTANT]: 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300',
@@ -226,13 +232,16 @@ function ProposalCard({ proposal, onApprove, onReject, isExpanded, onToggleExpan
   }
 
   return (
-    <div className={`border rounded p-3 transition-colors ${
-      proposal.status === 'approved'
-        ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/10'
-        : proposal.status === 'rejected'
-        ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/10'
-        : 'border-gray-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-600'
-    }`}>
+    <div
+      className={`border rounded p-3 transition-colors animate-slide-up ${
+        proposal.status === 'approved'
+          ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/10'
+          : proposal.status === 'rejected'
+          ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/10'
+          : 'border-gray-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-600'
+      }`}
+      style={{ animationDelay: `${index * 30}ms` }}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
