@@ -119,6 +119,9 @@ export class DocumentState {
       throw new Error(`Proposal ${proposalId} is not pending`)
     }
 
+    // Store original content to calculate actual change position
+    const contentBefore = this.content
+
     // Apply the change
     const newContent = this.applyChange(proposal)
     this.updateContent(newContent, `agent:${proposal.agentId}`)
@@ -126,6 +129,10 @@ export class DocumentState {
     // Update proposal status
     proposal.status = 'approved'
     proposal.appliedAt = new Date()
+
+    // Update all pending proposals to remove the changed text from their originalText
+    // This prevents the same text from being matched multiple times
+    this.updatePendingProposalsAfterChange(contentBefore, newContent, proposal)
 
     // Track applied change
     this.appliedChanges.push({
@@ -187,12 +194,35 @@ export class DocumentState {
 
     switch (type) {
       case 'replace':
-        // Replace text at location
-        return (
-          content.substring(0, location.start) +
-          proposedText +
-          content.substring(location.end)
-        )
+        // For replace operations, use text matching if originalText is provided
+        // This is more reliable than AI-provided character positions
+        if (originalText && originalText.trim()) {
+          // Find the text in the document
+          const index = content.indexOf(originalText)
+          if (index !== -1) {
+            // Found exact match - use it instead of positions
+            return (
+              content.substring(0, index) +
+              proposedText +
+              content.substring(index + originalText.length)
+            )
+          } else {
+            // Fallback to position-based if exact match not found
+            console.warn('Could not find exact match for originalText, using positions:', originalText.substring(0, 50))
+            return (
+              content.substring(0, location.start) +
+              proposedText +
+              content.substring(location.end)
+            )
+          }
+        } else {
+          // No originalText provided, use position-based replacement
+          return (
+            content.substring(0, location.start) +
+            proposedText +
+            content.substring(location.end)
+          )
+        }
 
       case 'insert':
         // Insert text at location
@@ -272,6 +302,31 @@ export class DocumentState {
     this.updateContent(version.content, 'revert')
 
     return this.content
+  }
+
+  /**
+   * Update pending proposals after a change is applied
+   * Since we use text matching, we need to ensure pending proposals
+   * still match the updated document
+   */
+  updatePendingProposalsAfterChange(contentBefore, contentAfter, appliedProposal) {
+    const { originalText, proposedText } = appliedProposal
+
+    // For each pending proposal, check if its originalText still exists in the new content
+    this.changeProposals.forEach(proposal => {
+      if (proposal.status === 'pending' && proposal.originalText) {
+        // Check if the original text is still in the document
+        const stillExists = contentAfter.indexOf(proposal.originalText) !== -1
+
+        if (!stillExists) {
+          // The text this proposal refers to has been modified or removed
+          // Mark it with a warning but keep it pending
+          proposal.metadata = proposal.metadata || {}
+          proposal.metadata.mayBeInvalid = true
+          console.warn(`Proposal ${proposal.id} may be invalid - originalText no longer found in document`)
+        }
+      }
+    })
   }
 
   /**
