@@ -63,7 +63,7 @@ function highlightMarkdownSyntax(text) {
 
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { initializeDocument, updateDocumentContent, getPendingProposals } = useAgents()
+  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
@@ -117,16 +117,37 @@ function HomePage() {
     loadDocuments()
   }, [])
 
-  // Initialize agent document state when text changes
+  // Initialize agent document state only when document changes (not on every keystroke)
+  const lastDocIdRef = useRef(null)
+
   useEffect(() => {
-    if (text) {
+    if (text && currentDocId) {
       const currentDoc = documents.find(doc => doc.id === currentDocId)
-      initializeDocument(text, {
-        title: currentDoc?.title || 'Untitled Document',
-        documentId: currentDocId
-      })
+
+      // Only initialize on document switch, not on every text change
+      if (currentDocId !== lastDocIdRef.current) {
+        lastDocIdRef.current = currentDocId
+        initializeDocument(text, {
+          title: currentDoc?.title || 'Untitled Document',
+          documentId: currentDocId
+        })
+      }
     }
   }, [text, currentDocId, documents, initializeDocument])
+
+  // Sync text with documentState when it changes from agent actions
+  useEffect(() => {
+    if (documentState && updateCounter > 0) {
+      const stateContent = documentState.getContent()
+      // Update text when proposals are approved (updateCounter changes)
+      if (stateContent) {
+        setText(stateContent)
+      }
+    }
+    // Intentionally NOT including 'text' in dependencies to avoid infinite loop
+    // This effect should only run when proposals are approved (updateCounter changes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateCounter, documentState])
 
   const saveDocument = async () => {
     if (!text.trim()) return

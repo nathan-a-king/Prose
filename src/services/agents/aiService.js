@@ -12,9 +12,20 @@ const API_ENDPOINT = 'https://api.openai.com/v1/chat/completions'
  * Get API key from environment or localStorage
  */
 function getApiKey() {
-  const envKey = import.meta.env.VITE_OPENAI_API_KEY
+  // Try environment variable (works in development with Vite)
+  const envKey = import.meta.env?.VITE_OPENAI_API_KEY
+
+  // Try localStorage (works in both dev and production)
   const storedKey = localStorage.getItem('openai_api_key')
-  return envKey || storedKey
+
+  // Return whichever is available
+  const apiKey = envKey || storedKey
+
+  if (!apiKey) {
+    console.warn('OpenAI API key not found. Please set it in the app or in environment.')
+  }
+
+  return apiKey
 }
 
 /**
@@ -53,6 +64,8 @@ export async function makeCompletion(options) {
   }
 
   try {
+    console.log('[AI Service] Making completion request...', { model, temperature, maxTokens })
+
     const response = await fetch(API_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -62,29 +75,33 @@ export async function makeCompletion(options) {
       body: JSON.stringify(requestBody)
     })
 
+    console.log('[AI Service] Response status:', response.status)
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new Error(
-        `OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`
-      )
+      const errorMessage = `OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`
+      console.error('[AI Service] API Error:', errorMessage, errorData)
+      throw new Error(errorMessage)
     }
 
     const data = await response.json()
     const content = data.choices[0].message.content
+
+    console.log('[AI Service] Completion successful, content length:', content?.length || 0)
 
     // Parse JSON if requested
     if (responseFormat === 'json') {
       try {
         return JSON.parse(content)
       } catch (error) {
-        console.error('Failed to parse JSON response:', content)
+        console.error('[AI Service] Failed to parse JSON response:', content)
         throw new Error('AI returned invalid JSON')
       }
     }
 
     return content
   } catch (error) {
-    console.error('AI Service Error:', error)
+    console.error('[AI Service] Error:', error.message || error)
     throw error
   }
 }
@@ -112,6 +129,8 @@ export async function makeStreamingCompletion(options, onChunk) {
   ]
 
   try {
+    console.log('[AI Service] Making streaming completion request...', { model, temperature, maxTokens })
+
     const response = await fetch(API_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -127,11 +146,13 @@ export async function makeStreamingCompletion(options, onChunk) {
       })
     })
 
+    console.log('[AI Service] Streaming response status:', response.status)
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new Error(
-        `OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`
-      )
+      const errorMessage = `OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`
+      console.error('[AI Service] Streaming API Error:', errorMessage, errorData)
+      throw new Error(errorMessage)
     }
 
     const reader = response.body.getReader()

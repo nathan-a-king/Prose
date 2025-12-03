@@ -13,6 +13,7 @@ const AgentContext = createContext()
 
 export function AgentProvider({ children }) {
   const [documentState, setDocumentState] = useState(null)
+  const [updateCounter, setUpdateCounter] = useState(0) // Force re-renders
   const [orchestrator] = useState(() => getOrchestrator())
   const [agents, setAgents] = useState([])
   const [pipelines, setPipelines] = useState([])
@@ -137,7 +138,8 @@ export function AgentProvider({ children }) {
 
     try {
       const newContent = documentState.approveProposal(proposalId)
-      setDocumentState(documentState) // Trigger re-render
+      // Force React to recognize the state change
+      setUpdateCounter(c => c + 1)
       updateProposalsAndAnnotations(documentState)
       return newContent
     } catch (error) {
@@ -154,7 +156,8 @@ export function AgentProvider({ children }) {
 
     try {
       documentState.rejectProposal(proposalId, reason)
-      setDocumentState(documentState) // Trigger re-render
+      // Force React to recognize the state change
+      setUpdateCounter(c => c + 1)
       updateProposalsAndAnnotations(documentState)
     } catch (error) {
       console.error('Failed to reject proposal:', error)
@@ -170,7 +173,8 @@ export function AgentProvider({ children }) {
 
     try {
       const results = documentState.approveAllFromAgent(agentId)
-      setDocumentState(documentState) // Trigger re-render
+      // Force React to recognize the state change
+      setUpdateCounter(c => c + 1)
       updateProposalsAndAnnotations(documentState)
       return results
     } catch (error) {
@@ -208,6 +212,7 @@ export function AgentProvider({ children }) {
   const value = {
     // State
     documentState,
+    updateCounter,
     agents,
     pipelines,
     changeProposals,

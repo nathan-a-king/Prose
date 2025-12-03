@@ -195,8 +195,8 @@ function AgentCard({ agent, onExecute, isExecuting, isCurrentlyRunning }) {
 
   return (
     <div className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 transition-colors">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
               {agent.name}
@@ -212,7 +212,7 @@ function AgentCard({ agent, onExecute, isExecuting, isCurrentlyRunning }) {
         <button
           onClick={onExecute}
           disabled={isExecuting}
-          className={`ml-3 px-3 py-1.5 text-sm rounded transition-colors ${
+          className={`flex-shrink-0 px-4 py-1.5 text-sm font-medium rounded-md transition-colors min-w-[80px] ${
             isCurrentlyRunning
               ? 'bg-blue-600 text-white'
               : isExecuting
@@ -233,15 +233,15 @@ function AgentCard({ agent, onExecute, isExecuting, isCurrentlyRunning }) {
 function PipelineCard({ pipeline, onExecute, isExecuting, isCurrentlyRunning }) {
   return (
     <div className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 transition-colors">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
           <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
             {pipeline.name}
           </h3>
           <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
             {pipeline.description}
           </p>
-          <div className="flex items-center gap-1 mt-2">
+          <div className="flex items-center gap-1 mt-2 flex-wrap">
             {pipeline.steps.map((step, index) => (
               <span
                 key={index}
@@ -255,7 +255,7 @@ function PipelineCard({ pipeline, onExecute, isExecuting, isCurrentlyRunning }) 
         <button
           onClick={onExecute}
           disabled={isExecuting}
-          className={`ml-3 px-3 py-1.5 text-sm rounded transition-colors ${
+          className={`flex-shrink-0 px-4 py-1.5 text-sm font-medium rounded-md transition-colors min-w-[80px] ${
             isCurrentlyRunning
               ? 'bg-blue-600 text-white'
               : isExecuting
@@ -263,7 +263,7 @@ function PipelineCard({ pipeline, onExecute, isExecuting, isCurrentlyRunning }) 
               : 'bg-blue-600 text-white hover:bg-blue-700'
           }`}
         >
-          {isCurrentlyRunning ? 'Running...' : 'Run Pipeline'}
+          {isCurrentlyRunning ? 'Running...' : 'Run'}
         </button>
       </div>
     </div>

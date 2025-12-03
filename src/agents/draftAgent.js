@@ -178,8 +178,7 @@ function buildUserPrompt({ content, metadata, prompt, outline, section, targetWo
 function createDraftProposal(draftContent, documentState, section) {
   const content = documentState.getContent()
 
-  // If section specified, try to insert at relevant location
-  // Otherwise, append to end or replace all if empty
+  // Strategy: Replace entire document with draft content
   let location
   let type
   let originalText = ''
@@ -188,25 +187,11 @@ function createDraftProposal(draftContent, documentState, section) {
     // Empty document - replace all
     type = CHANGE_TYPES.REPLACE
     location = { start: 0, end: 0 }
-  } else if (section) {
-    // Try to find section header
-    const sectionRegex = new RegExp(`^#+\\s+${section}`, 'mi')
-    const match = sectionRegex.exec(content)
-
-    if (match) {
-      // Insert after section header
-      const insertPosition = match.index + match[0].length
-      type = CHANGE_TYPES.INSERT
-      location = { start: insertPosition, end: insertPosition }
-    } else {
-      // Section not found, append to end
-      type = CHANGE_TYPES.INSERT
-      location = { start: content.length, end: content.length }
-    }
   } else {
-    // Append to end
-    type = CHANGE_TYPES.INSERT
-    location = { start: content.length, end: content.length }
+    // Non-empty document - replace entire content with draft
+    type = CHANGE_TYPES.REPLACE
+    location = { start: 0, end: content.length }
+    originalText = content
   }
 
   return {
@@ -214,7 +199,7 @@ function createDraftProposal(draftContent, documentState, section) {
     location,
     originalText,
     proposedText: draftContent,
-    rationale: 'Generated draft content based on your request',
+    rationale: 'Generated draft content to replace current document',
     category: CHANGE_CATEGORIES.CONTENT,
     priority: CHANGE_PRIORITIES.IMPORTANT,
     agentId: DRAFT_AGENT_ID,
