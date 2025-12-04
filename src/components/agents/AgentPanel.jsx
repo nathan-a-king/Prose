@@ -214,7 +214,7 @@ function AgentCard({ agent, onExecute, isExecuting, isCurrentlyRunning }) {
           disabled={isExecuting}
           className={`flex-shrink-0 px-4 py-1.5 text-sm font-medium rounded-md transition-colors min-w-[80px] ${
             isCurrentlyRunning
-              ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900'
+              ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
               : isExecuting
               ? 'bg-gray-100 dark:bg-neutral-700 text-gray-400 cursor-not-allowed'
               : 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-300'
@@ -257,7 +257,7 @@ function PipelineCard({ pipeline, onExecute, isExecuting, isCurrentlyRunning }) 
           disabled={isExecuting}
           className={`flex-shrink-0 px-4 py-1.5 text-sm font-medium rounded-md transition-colors min-w-[80px] ${
             isCurrentlyRunning
-              ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900'
+              ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
               : isExecuting
               ? 'bg-gray-100 dark:bg-neutral-700 text-gray-400 cursor-not-allowed'
               : 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-300'
