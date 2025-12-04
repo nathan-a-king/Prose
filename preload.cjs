@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld('fileSystem', {
   // Open file dialog and return selected file path and content
   openFile: () => ipcRenderer.invoke('file:open'),
 
+  // Read file content from a specific path
+  readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
+
   // Save file to a specific path
   saveFile: (filePath, content) => ipcRenderer.invoke('file:save', filePath, content),
 

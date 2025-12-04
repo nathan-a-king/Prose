@@ -83,6 +83,7 @@ function HomePage() {
   const editorRef = useRef(null)
   const [documents, setDocuments] = useState([])
   const [loadingDocuments, setLoadingDocuments] = useState(true)
+  const [recentFiles, setRecentFiles] = useState([])
   const [editingDocId, setEditingDocId] = useState(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [draggedDoc, setDraggedDoc] = useState(null)
@@ -92,31 +93,39 @@ function HomePage() {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [pendingAiAction, setPendingAiAction] = useState(null)
 
-  // Load documents from API on component mount
+  // Load recent files from localStorage on mount
   useEffect(() => {
-    const loadDocuments = async () => {
+    const stored = localStorage.getItem('prose_recent_files')
+    if (stored) {
       try {
-        setLoadingDocuments(true)
-        const docs = await documentApi.getAll()
-        // Documents are already ordered by display_order from the backend
-        setDocuments(docs)
-      } catch (error) {
-        console.error('Failed to load documents:', error)
-        // Fallback to localStorage if API fails
-        const stored = localStorage.getItem('aiwriter_documents')
-        if (stored) {
-          try {
-            setDocuments(JSON.parse(stored))
-          } catch (e) {
-            console.error('Failed to parse stored documents:', e)
-          }
-        }
-      } finally {
-        setLoadingDocuments(false)
+        setRecentFiles(JSON.parse(stored))
+      } catch (e) {
+        console.error('Failed to parse recent files:', e)
       }
     }
+    setLoadingDocuments(false)
+  }, [])
 
-    loadDocuments()
+  // Add file to recent files list
+  const addToRecentFiles = useCallback((filePath, content) => {
+    const fileName = fileSystemApi.getFileName(filePath)
+    const preview = content.substring(0, 100).replace(/\n/g, ' ') + (content.length > 100 ? '...' : '')
+
+    setRecentFiles(prev => {
+      // Remove if already exists
+      const filtered = prev.filter(f => f.path !== filePath)
+      // Add to front
+      const updated = [{
+        path: filePath,
+        name: fileName,
+        preview,
+        lastOpened: new Date().toISOString()
+      }, ...filtered].slice(0, 15) // Keep last 15 files
+
+      // Save to localStorage
+      localStorage.setItem('prose_recent_files', JSON.stringify(updated))
+      return updated
+    })
   }, [])
 
   // Initialize agent document state only when document changes (not on every keystroke)
@@ -272,12 +281,35 @@ function HomePage() {
         setText(result.content)
         setCurrentFilePath(result.filePath)
         setCurrentDocId(null) // Clear database document ID
+        addToRecentFiles(result.filePath, result.content)
         setSidebarOpen(false)
       }
     } catch (error) {
       console.error('Failed to open file:', error)
     }
-  }, [])
+  }, [addToRecentFiles])
+
+  // Open a recent file
+  const openRecentFile = useCallback(async (filePath) => {
+    if (!fileSystemApi.isAvailable()) return
+
+    try {
+      const content = await window.fileSystem.readFile(filePath)
+      setText(content)
+      setCurrentFilePath(filePath)
+      setCurrentDocId(null)
+      addToRecentFiles(filePath, content)
+      setSidebarOpen(false)
+    } catch (error) {
+      console.error('Failed to open recent file:', error)
+      // Remove from recent files if it doesn't exist
+      setRecentFiles(prev => {
+        const updated = prev.filter(f => f.path !== filePath)
+        localStorage.setItem('prose_recent_files', JSON.stringify(updated))
+        return updated
+      })
+    }
+  }, [addToRecentFiles])
 
   // Save file as (show save dialog)
   const saveFileAs = useCallback(async () => {
@@ -710,7 +742,7 @@ function HomePage() {
         {/* Main header content - single row layout */}
         <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4" style={{ paddingLeft: window.navigator.userAgent.toLowerCase().includes('mac') ? '80px' : '0' }}>
-            {/* Document sidebar toggle */}
+            {/* Recent Files sidebar toggle */}
             <button
               onClick={() => {
                 setSidebarOpen(!sidebarOpen)
@@ -720,10 +752,10 @@ function HomePage() {
                 }
               }}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              title="Toggle documents"
+              title="Toggle recent files"
             >
               <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </button>
             <img src="/images/prose.png" alt="Prose - Minimal Markdown Editor" className="h-10 w-auto dark:invert" />
@@ -857,142 +889,77 @@ function HomePage() {
 
       {/* Main Content */}
       <div className="p-8 relative bg-gray-100 dark:bg-neutral-800 min-h-full pt-24">
-        {/* Document Sidebar */}
+        {/* Recent Files Sidebar */}
         <div className={`fixed top-24 left-8 bottom-8 w-80 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-10 overflow-hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-96'
         }`}>
           <div className="p-6 border-b border-gray-200 dark:border-neutral-700">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Documents</h2>
-              <div className="flex gap-2">
-                {fileSystemApi.isAvailable() && (
-                  <button
-                    onClick={openFile}
-                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
-                    title="Open file (Ctrl+O)"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
-                    </svg>
-                  </button>
-                )}
-                <button
-                  onClick={saveDocument}
-                  className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
-                  title="Save document (Ctrl+S)"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                </button>
-                {fileSystemApi.isAvailable() && (
-                  <button
-                    onClick={saveFileAs}
-                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
-                    title="Save as (Ctrl+Shift+S)"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </button>
-                )}
-                <button
-                  onClick={newDocument}
-                  className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
-                  title="New document (Ctrl+N)"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                </button>
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Recent Files</h2>
+              <button
+                onClick={openFile}
+                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
+                title="Open file (Cmd+O)"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                </svg>
+              </button>
             </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Recently opened markdown files</p>
           </div>
           <div className="overflow-y-auto overflow-x-hidden h-full pb-20">
             {loadingDocuments ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                 <div className="w-6 h-6 border border-gray-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                <p>Loading documents...</p>
+                <p>Loading files...</p>
               </div>
-            ) : documents.length === 0 ? (
+            ) : recentFiles.length === 0 ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <p>No documents yet. Create your first document!</p>
+                <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm mb-2">No recent files</p>
+                <p className="text-xs">Press Cmd+O to open a file</p>
               </div>
             ) : (
-              documents.map((doc) => (
-              <div 
-                key={doc.id} 
-                onClick={() => loadDocument(doc)}
-                draggable
-                onDragStart={(e) => handleDragStart(e, doc)}
-                onDragEnd={handleDragEnd}
-                onDragOver={(e) => handleDragOver(e, doc)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, doc)}
-                className={`p-4 border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer group transition-all duration-200 ${
-                  currentDocId === doc.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''
-                } ${
-                  dragOverDocId === doc.id && dropPosition === 'before' ? 'border-t-2 border-t-blue-500 pt-6' : ''
-                } ${
-                  dragOverDocId === doc.id && dropPosition === 'after' ? 'border-b-2 border-b-blue-500 pb-6' : ''
+              recentFiles.map((file) => (
+              <div
+                key={file.path}
+                onClick={() => openRecentFile(file.path)}
+                className={`p-4 border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer group transition-colors ${
+                  currentFilePath === file.path ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-2 flex-1 min-w-0">
-                    {/* Drag handle */}
-                    <div className="mt-1 cursor-move opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                      <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M9 5h2v2H9V5zm0 4h2v2H9V9zm0 4h2v2H9v-2zm0 4h2v2H9v-2zm4-12h2v2h-2V5zm0 4h2v2h-2V9zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/>
-                      </svg>
-                    </div>
+                    <svg className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
                     <div className="flex-1 min-w-0 overflow-hidden">
-                    {editingDocId === doc.id ? (
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="text"
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              saveRename(doc.id)
-                            } else if (e.key === 'Escape') {
-                              cancelRename()
-                            }
-                          }}
-                          onBlur={() => saveRename(doc.id)}
-                          autoFocus
-                          className="w-full font-medium text-gray-900 dark:text-gray-100 bg-white dark:bg-neutral-600 border border-blue-300 dark:border-blue-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{doc.preview}</p>
-                      </div>
-                    ) : (
-                      <>
-                        <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">{doc.title}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{doc.preview}</p>
-                      </>
-                    )}
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{file.path}</p>
+                      {file.preview && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{file.preview}</p>
+                      )}
                     </div>
                   </div>
-                  <div className="flex ml-2 gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 flex-shrink-0">
-                    <button
-                      onClick={(e) => startEditingTitle(doc, e)}
-                      className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                      title="Rename document"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => deleteDocument(doc.id, e)}
-                      className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                      title="Delete document"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRecentFiles(prev => {
+                        const updated = prev.filter(f => f.path !== file.path)
+                        localStorage.setItem('prose_recent_files', JSON.stringify(updated))
+                        return updated
+                      })
+                    }}
+                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    title="Remove from recent"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))

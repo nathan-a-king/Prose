@@ -204,7 +204,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.cjs')
     },
     icon: path.join(__dirname, 'public', 'favicon.ico'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#ffffff',
@@ -412,6 +412,16 @@ ipcMain.handle('file:open', async () => {
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
     return { filePath, content };
+  } catch (error) {
+    console.error('Error reading file:', error);
+    throw new Error(`Failed to read file: ${error.message}`);
+  }
+});
+
+ipcMain.handle('file:read', async (event, filePath) => {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return content;
   } catch (error) {
     console.error('Error reading file:', error);
     throw new Error(`Failed to read file: ${error.message}`);
