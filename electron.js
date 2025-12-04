@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeTheme, screen, shell } from 'electron';
+import { app, BrowserWindow, Menu, nativeTheme, screen, shell, dialog, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
@@ -203,7 +203,8 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true
+      webSecurity: true,
+      preload: path.join(__dirname, 'preload.js')
     },
     icon: path.join(__dirname, 'public', 'favicon.ico'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#ffffff',
@@ -298,10 +299,25 @@ function createMenu() {
           }
         },
         {
+          label: 'Open File...',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => {
+            mainWindow.webContents.send('menu:openFile');
+          }
+        },
+        { type: 'separator' },
+        {
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
           click: () => {
             mainWindow.webContents.send('save-document');
+          }
+        },
+        {
+          label: 'Save As...',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: () => {
+            mainWindow.webContents.send('menu:saveFileAs');
           }
         },
         { type: 'separator' },
@@ -378,9 +394,85 @@ function createMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+// IPC Handlers for file system operations
+ipcMain.handle('file:open', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'Markdown', extensions: ['md', 'markdown', 'txt'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  const filePath = result.filePaths[0];
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return { filePath, content };
+  } catch (error) {
+    console.error('Error reading file:', error);
+    throw new Error(`Failed to read file: ${error.message}`);
+  }
+});
+
+ipcMain.handle('file:save', async (event, filePath, content) => {
+  try {
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('Error saving file:', error);
+    throw new Error(`Failed to save file: ${error.message}`);
+  }
+});
+
+ipcMain.handle('file:saveAs', async (event, content, defaultName) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: defaultName || 'untitled.md',
+    filters: [
+      { name: 'Markdown', extensions: ['md'] },
+      { name: 'Text', extensions: ['txt'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (result.canceled || !result.filePath) {
+    return null;
+  }
+
+  try {
+    fs.writeFileSync(result.filePath, content, 'utf-8');
+    return { success: true, filePath: result.filePath };
+  } catch (error) {
+    console.error('Error saving file:', error);
+    throw new Error(`Failed to save file: ${error.message}`);
+  }
+});
+
+ipcMain.handle('file:getInfo', async (event, filePath) => {
+  try {
+    const stats = fs.statSync(filePath);
+    return {
+      name: path.basename(filePath),
+      path: filePath,
+      size: stats.size,
+      modifiedAt: stats.mtime
+    };
+  } catch (error) {
+    console.error('Error getting file info:', error);
+    throw new Error(`Failed to get file info: ${error.message}`);
+  }
+});
+
+ipcMain.handle('file:exists', async (event, filePath) => {
+  return fs.existsSync(filePath);
+});
+
 app.whenReady().then(async () => {
   createMenu();
-  
+
   try {
     await startServer();
     createWindow();

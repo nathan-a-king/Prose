@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAgents } from '../contexts/AgentContext'
 import { documentApi } from '../services/documentApi'
+import { fileSystemApi, setupMenuListeners } from '../services/fileSystemApi'
 import AgentPanel from '../components/agents/AgentPanel'
 import ChangeProposalPanel from '../components/agents/ChangeProposalPanel'
 
@@ -67,6 +68,7 @@ function HomePage() {
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
+  const [currentFilePath, setCurrentFilePath] = useState(null) // For filesystem documents
   const [saveStatus, setSaveStatus] = useState('') // '', 'saving', 'saved'
   const [viewMode, setViewMode] = useState('edit') // 'edit', 'preview'
   const [aiSidebarOpen, setAiSidebarOpen] = useState(false)
@@ -153,23 +155,31 @@ function HomePage() {
 
   const saveDocument = async () => {
     if (!text.trim()) return
-    
-    const preview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
-    
+
     setSaveStatus('saving')
-    
+
     try {
+      // If we have a file path, save to filesystem
+      if (currentFilePath) {
+        await fileSystemApi.saveFile(currentFilePath, text)
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus(''), 2000)
+        return
+      }
+
+      // Otherwise save to database
+      const preview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
       let savedDoc
       if (currentDocId) {
         // Update existing document
         const existingDoc = documents.find(doc => doc.id === currentDocId)
         const shouldUpdateTitle = !existingDoc?.title_manually_set
-        const title = shouldUpdateTitle 
+        const title = shouldUpdateTitle
           ? (text.split('\n')[0].substring(0, 50) || 'Untitled Document')
           : existingDoc.title
-        
+
         savedDoc = await documentApi.update(currentDocId, title, text, preview, existingDoc?.title_manually_set || false)
-        setDocuments(docs => docs.map(doc => 
+        setDocuments(docs => docs.map(doc =>
           doc.id === currentDocId ? savedDoc : doc
         ))
       } else {
@@ -179,7 +189,7 @@ function HomePage() {
         setDocuments(docs => [savedDoc, ...docs])
         setCurrentDocId(savedDoc.id)
       }
-      
+
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus(''), 2000)
     } catch (error) {
@@ -238,14 +248,72 @@ function HomePage() {
   const loadDocument = (doc) => {
     setText(doc.content)
     setCurrentDocId(doc.id)
+    setCurrentFilePath(null) // Clear file path when loading from database
     setSidebarOpen(false)
   }
 
-  const newDocument = () => {
+  const newDocument = useCallback(() => {
     setText('')
     setCurrentDocId(null)
+    setCurrentFilePath(null)
     setSidebarOpen(false)
-  }
+  }, [])
+
+  // Open a file from the filesystem
+  const openFile = useCallback(async () => {
+    if (!fileSystemApi.isAvailable()) {
+      console.log('File system API not available')
+      return
+    }
+
+    try {
+      const result = await fileSystemApi.openFile()
+      if (result) {
+        setText(result.content)
+        setCurrentFilePath(result.filePath)
+        setCurrentDocId(null) // Clear database document ID
+        setSidebarOpen(false)
+      }
+    } catch (error) {
+      console.error('Failed to open file:', error)
+    }
+  }, [])
+
+  // Save file as (show save dialog)
+  const saveFileAs = useCallback(async () => {
+    if (!fileSystemApi.isAvailable()) {
+      console.log('File system API not available')
+      return
+    }
+
+    try {
+      const defaultName = currentFilePath
+        ? fileSystemApi.getFileName(currentFilePath)
+        : (text.split('\n')[0].substring(0, 50).replace(/[^a-zA-Z0-9 ]/g, '') || 'untitled') + '.md'
+
+      const result = await fileSystemApi.saveFileAs(text, defaultName)
+      if (result) {
+        setCurrentFilePath(result.filePath)
+        setCurrentDocId(null) // This is now a file system document
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus(''), 2000)
+      }
+    } catch (error) {
+      console.error('Failed to save file:', error)
+    }
+  }, [text, currentFilePath])
+
+  // Setup menu event listeners
+  useEffect(() => {
+    const cleanup = setupMenuListeners({
+      onNewDocument: newDocument,
+      onSaveDocument: saveDocument,
+      onOpenFile: openFile,
+      onSaveFileAs: saveFileAs
+    })
+
+    return cleanup
+  }, [newDocument, openFile, saveFileAs])
 
   const getApiKey = () => {
     return new Promise((resolve) => {
@@ -661,6 +729,18 @@ function HomePage() {
             <img src="/images/prose.png" alt="Prose - Minimal Markdown Editor" className="h-10 w-auto dark:invert" />
           </div>
           <div className="flex items-center gap-4">
+          {/* Current file indicator */}
+          {currentFilePath && (
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 max-w-[200px]">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="truncate" title={currentFilePath}>
+                {fileSystemApi.getFileName(currentFilePath)}
+              </span>
+            </div>
+          )}
+
           {/* Auto-save indicator */}
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 min-w-[80px]">
             {saveStatus === 'saving' && (
@@ -785,19 +865,41 @@ function HomePage() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Documents</h2>
               <div className="flex gap-2">
+                {fileSystemApi.isAvailable() && (
+                  <button
+                    onClick={openFile}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
+                    title="Open file (Ctrl+O)"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   onClick={saveDocument}
                   className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
-                  title="Save document"
+                  title="Save document (Ctrl+S)"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                 </button>
+                {fileSystemApi.isAvailable() && (
+                  <button
+                    onClick={saveFileAs}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
+                    title="Save as (Ctrl+Shift+S)"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   onClick={newDocument}
                   className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
-                  title="New document"
+                  title="New document (Ctrl+N)"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
