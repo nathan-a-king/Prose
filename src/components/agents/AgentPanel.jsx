@@ -76,7 +76,7 @@ export default function AgentPanel({ onClose }) {
             onClick={() => setSelectedTab('agents')}
             className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
               selectedTab === 'agents'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
                 : 'bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600'
             }`}
           >
@@ -86,7 +86,7 @@ export default function AgentPanel({ onClose }) {
             onClick={() => setSelectedTab('pipelines')}
             className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
               selectedTab === 'pipelines'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
                 : 'bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600'
             }`}
           >
@@ -154,10 +154,10 @@ export default function AgentPanel({ onClose }) {
 
       {/* Execution Status */}
       {isExecuting && (
-        <div className="flex-none p-4 border-t border-gray-200 dark:border-neutral-700 bg-blue-50 dark:bg-blue-900/20">
+        <div className="flex-none p-4 border-t border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-5 h-5 border-2 border-gray-900 dark:border-gray-100 border-t-transparent rounded-full animate-spin"></div>
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   {executionProgress?.type === 'pipeline' ? 'Running Pipeline...' : 'Running Agent...'}
@@ -194,7 +194,7 @@ function AgentCard({ agent, onExecute, isExecuting, isCurrentlyRunning }) {
   }
 
   return (
-    <div className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 transition-colors">
+    <div className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -214,10 +214,10 @@ function AgentCard({ agent, onExecute, isExecuting, isCurrentlyRunning }) {
           disabled={isExecuting}
           className={`flex-shrink-0 px-4 py-1.5 text-sm font-medium rounded-md transition-colors min-w-[80px] ${
             isCurrentlyRunning
-              ? 'bg-blue-600 text-white'
+              ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
               : isExecuting
               ? 'bg-gray-100 dark:bg-neutral-700 text-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-300'
           }`}
         >
           {isCurrentlyRunning ? 'Running...' : 'Run'}
@@ -232,7 +232,7 @@ function AgentCard({ agent, onExecute, isExecuting, isCurrentlyRunning }) {
  */
 function PipelineCard({ pipeline, onExecute, isExecuting, isCurrentlyRunning }) {
   return (
-    <div className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 transition-colors">
+    <div className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -257,10 +257,10 @@ function PipelineCard({ pipeline, onExecute, isExecuting, isCurrentlyRunning }) 
           disabled={isExecuting}
           className={`flex-shrink-0 px-4 py-1.5 text-sm font-medium rounded-md transition-colors min-w-[80px] ${
             isCurrentlyRunning
-              ? 'bg-blue-600 text-white'
+              ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
               : isExecuting
               ? 'bg-gray-100 dark:bg-neutral-700 text-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-300'
           }`}
         >
           {isCurrentlyRunning ? 'Running...' : 'Run'}
