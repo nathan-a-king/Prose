@@ -118,6 +118,7 @@ function HomePage() {
   }, [])
 
   // Initialize agent document state only when document changes (not on every keystroke)
+  // After initialization, the textarea's onChange handler keeps DocumentState synced
   const lastDocIdRef = useRef(null)
 
   useEffect(() => {
@@ -140,7 +141,8 @@ function HomePage() {
     if (documentState && updateCounter > 0) {
       const stateContent = documentState.getContent()
       // Update text when proposals are approved (updateCounter changes)
-      if (stateContent) {
+      // Only update if content actually changed to avoid overwriting user edits
+      if (stateContent && stateContent !== text) {
         setText(stateContent)
       }
     }
@@ -1177,7 +1179,12 @@ function HomePage() {
                 ref={textareaRef}
                 value={text}
                 onChange={(e) => {
-                  setText(e.target.value)
+                  const newText = e.target.value
+                  setText(newText)
+                  // Update document state immediately so agents always have current content
+                  if (documentState) {
+                    updateDocumentContent(newText, 'user')
+                  }
                 }}
                 onKeyDown={(e) => {
                   // Handle Cmd+A (Mac) or Ctrl+A (Windows/Linux) for select all
