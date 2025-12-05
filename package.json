@@ -59,6 +59,7 @@
       "server.js",
       "database.js",
       "electron.js",
+      "preload.cjs",
       "node_modules/**/*",
       "package.json"
     ],

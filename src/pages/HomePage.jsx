@@ -131,21 +131,29 @@ function HomePage() {
   // Initialize agent document state only when document changes (not on every keystroke)
   // After initialization, the textarea's onChange handler keeps DocumentState synced
   const lastDocIdRef = useRef(null)
+  const hasInitializedRef = useRef(false)
 
   useEffect(() => {
-    if (text && currentDocId) {
+    // Initialize when there's text (even without a currentDocId for new documents)
+    if (text) {
       const currentDoc = documents.find(doc => doc.id === currentDocId)
+      const docIdChanged = currentDocId !== lastDocIdRef.current
 
-      // Only initialize on document switch, not on every text change
-      if (currentDocId !== lastDocIdRef.current) {
+      // Initialize on document switch OR on first text entry
+      if (docIdChanged || (!hasInitializedRef.current && !documentState)) {
         lastDocIdRef.current = currentDocId
+        hasInitializedRef.current = true
         initializeDocument(text, {
-          title: currentDoc?.title || 'Untitled Document',
-          documentId: currentDocId
+          title: currentDoc?.title || (currentFilePath ? fileSystemApi.getFileName(currentFilePath) : 'Untitled Document'),
+          documentId: currentDocId,
+          filePath: currentFilePath
         })
       }
+    } else {
+      // Reset when text is cleared
+      hasInitializedRef.current = false
     }
-  }, [text, currentDocId, documents, initializeDocument])
+  }, [text, currentDocId, currentFilePath, documents, initializeDocument, documentState])
 
   // Sync text with documentState when it changes from agent actions
   useEffect(() => {
@@ -350,12 +358,12 @@ function HomePage() {
   const getApiKey = () => {
     return new Promise((resolve) => {
       // Try to get API key from environment variable or localStorage
-      let apiKey = import.meta.env.VITE_OPENAI_API_KEY
-      
+      let apiKey = (typeof import.meta.env !== 'undefined' && import.meta.env.VITE_OPENAI_API_KEY) || undefined
+
       if (!apiKey) {
         apiKey = localStorage.getItem('openai_api_key')
       }
-      
+
       if (apiKey) {
         resolve(apiKey)
       } else {

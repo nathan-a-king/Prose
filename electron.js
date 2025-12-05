@@ -213,7 +213,7 @@ function createWindow() {
     show: true // Show immediately
   });
 
-  // Set Content Security Policy to allow OpenAI API calls
+  // Set Content Security Policy to allow OpenAI API calls and Google Fonts
   const session = mainWindow.webContents.session;
   session.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -222,10 +222,10 @@ function createWindow() {
         'Content-Security-Policy': [
           "default-src 'self' http://localhost:* ws://localhost:*; " +
           "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; " +
-          "style-src 'self' 'unsafe-inline' http://localhost:*; " +
+          "style-src 'self' 'unsafe-inline' http://localhost:* https://fonts.googleapis.com; " +
           "img-src 'self' data: http://localhost:*; " +
           "connect-src 'self' http://localhost:* ws://localhost:* https://api.openai.com; " +
-          "font-src 'self' data:;"
+          "font-src 'self' data: https://fonts.gstatic.com;"
         ]
       }
     });
