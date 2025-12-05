@@ -13,7 +13,8 @@ const API_ENDPOINT = 'https://api.openai.com/v1/chat/completions'
  */
 function getApiKey() {
   // Try environment variable (works in development with Vite)
-  const envKey = import.meta.env?.VITE_OPENAI_API_KEY
+  // Using optional chaining and checking if import.meta.env exists
+  const envKey = (typeof import.meta.env !== 'undefined' && import.meta.env.VITE_OPENAI_API_KEY) || undefined
 
   // Try localStorage (works in both dev and production)
   const storedKey = localStorage.getItem('openai_api_key')

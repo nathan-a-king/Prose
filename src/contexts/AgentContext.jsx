@@ -34,9 +34,11 @@ export function AgentProvider({ children }) {
    * Initialize or update document state
    */
   const initializeDocument = useCallback((content, metadata = {}) => {
+    console.log('[AgentContext] Initializing document', { contentLength: content?.length, metadata })
     const state = new DocumentState(content, metadata)
     setDocumentState(state)
     updateProposalsAndAnnotations(state)
+    console.log('[AgentContext] Document initialized successfully')
   }, [])
 
   /**
@@ -62,7 +64,9 @@ export function AgentProvider({ children }) {
    * Execute a single agent
    */
   const executeAgent = useCallback(async (agentId, options = {}) => {
+    console.log('[AgentContext] executeAgent called', { agentId, hasDocumentState: !!documentState })
     if (!documentState) {
+      console.error('[AgentContext] No document initialized. DocumentState is null.')
       throw new Error('No document initialized')
     }
 
