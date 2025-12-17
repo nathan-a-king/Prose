@@ -65,7 +65,7 @@ function highlightMarkdownSyntax(text) {
 
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent } = useAgents()
+  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
@@ -638,7 +638,17 @@ function HomePage() {
               </>
             )}
           </div>
-          
+
+          {/* Agent execution indicator */}
+          {isExecuting && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                {executionProgress?.agentId ? `Running ${executionProgress.agentId.replace('-agent', '')}...` : 'Running agent...'}
+              </span>
+            </div>
+          )}
+
           {/* View Mode Toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-neutral-700 rounded-lg p-1">
             <button
@@ -882,15 +892,18 @@ function HomePage() {
             </button>
             <button
               onClick={() => {
-                if (selectedAgent) {
+                if (selectedAgent && !isExecuting) {
                   executeAgent(selectedAgent)
                   setSteeringPanelOpen(false)
                 }
               }}
-              disabled={!selectedAgent}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={!selectedAgent || isExecuting}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
-              Execute Agent
+              {isExecuting && (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              )}
+              {isExecuting ? 'Running...' : 'Execute Agent'}
             </button>
           </div>
         </div>
