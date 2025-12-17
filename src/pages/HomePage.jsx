@@ -8,7 +8,7 @@ import { documentApi } from '../services/documentApi'
 import { fileSystemApi, setupMenuListeners } from '../services/fileSystemApi'
 import AgentPanel from '../components/agents/AgentPanel'
 import ChangeProposalPanel from '../components/agents/ChangeProposalPanel'
-import SteerControlBar from '../components/agents/SteerControlBar'
+import PromptionsControlPanel from '../components/agents/PromptionsControlPanel'
 
 // Function to preprocess markdown to preserve blank lines
 function preprocessMarkdown(text) {
@@ -65,7 +65,7 @@ function highlightMarkdownSyntax(text) {
 
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter } = useAgents()
+  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
@@ -86,13 +86,16 @@ function HomePage() {
   const [draggedDoc, setDraggedDoc] = useState(null)
   const [dragOverDocId, setDragOverDocId] = useState(null)
   const [dropPosition, setDropPosition] = useState('before') // 'before' or 'after'
-  const [steeringState, setSteeringState] = useState(null)
-  const [steeringMeta, setSteeringMeta] = useState(null)
 
-  const handleSteeringChange = useCallback((nextState, meta) => {
-    setSteeringState(nextState)
-    setSteeringMeta(meta)
-  }, [])
+  const handlePromptionsChange = useCallback((promptions) => {
+    setCurrentPromptions(promptions)
+  }, [setCurrentPromptions])
+
+  const handleAgentSelected = useCallback((agentId) => {
+    setSelectedAgent(agentId)
+    setSteeringPanelOpen(true) // Auto-open panel when agent selected
+    setAgentPanelOpen(false) // Close agent panel when steering panel opens
+  }, [setSelectedAgent])
 
   // Load recent files from localStorage on mount
   useEffect(() => {
@@ -827,7 +830,10 @@ function HomePage() {
         <div className={`fixed top-24 left-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
           agentPanelOpen ? 'translate-x-0' : '-translate-x-[28rem]'
         }`}>
-          <AgentPanel onClose={() => setAgentPanelOpen(false)} />
+          <AgentPanel
+            onClose={() => setAgentPanelOpen(false)}
+            onAgentSelected={handleAgentSelected}
+          />
         </div>
 
         {/* Change Proposal Panel */}
@@ -840,16 +846,18 @@ function HomePage() {
           />
         </div>
 
-        {/* Steering Control Bar Panel */}
+        {/* Promptions Control Panel */}
         <div className={`fixed bottom-8 left-1/2 transform -translate-x-1/2 w-[800px] max-w-[calc(100vw-4rem)] bg-white dark:bg-neutral-700 shadow-xl rounded-lg transition-transform duration-300 ease-in-out z-20 overflow-hidden ${
           steeringPanelOpen ? 'translate-y-0' : 'translate-y-[calc(100%+4rem)]'
         }`}>
           <div className="p-4 border-b border-gray-200 dark:border-neutral-600 flex items-center justify-between">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Steering Controls</h2>
+            <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+              {selectedAgent ? `Configure ${selectedAgent.replace(/-/g, ' ')}` : 'Agent Options'}
+            </h2>
             <button
               onClick={() => setSteeringPanelOpen(false)}
               className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded transition-colors"
-              title="Close steering controls"
+              title="Close options panel"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -857,18 +865,33 @@ function HomePage() {
             </button>
           </div>
           <div className="p-4">
-            <SteerControlBar onChange={handleSteeringChange} />
-            {steeringState && (
-              <div className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 mt-4 flex flex-wrap gap-x-3 gap-y-1">
-                <span className="font-medium text-gray-800 dark:text-gray-100">Current profile</span>
-                <span>Mode: {steeringState.mode}</span>
-                <span>Tone: {steeringState.tone}</span>
-                <span>Density: {steeringState.density}%</span>
-                <span>Risk: {steeringState.risk}%</span>
-                <span>Voice: {steeringState.preserveVoice ? 'Preserved' : 'Flexible'}</span>
-                <span>Safe rewrite: {steeringState.safeRewrite ? 'On' : 'Off'}</span>
-              </div>
-            )}
+            <PromptionsControlPanel
+              agentId={selectedAgent}
+              documentState={documentState}
+              onChange={handlePromptionsChange}
+            />
+          </div>
+
+          {/* Execute button */}
+          <div className="p-4 border-t border-gray-200 dark:border-neutral-600 flex justify-end gap-2">
+            <button
+              onClick={() => setSteeringPanelOpen(false)}
+              className="px-4 py-2 text-sm border border-gray-200 dark:border-neutral-500 rounded-md text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-neutral-600 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (selectedAgent) {
+                  executeAgent(selectedAgent)
+                  setSteeringPanelOpen(false)
+                }
+              }}
+              disabled={!selectedAgent}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Execute Agent
+            </button>
           </div>
         </div>
 

@@ -41,7 +41,8 @@ export const editorAgentContract = {
 async function executeEditorAgent(documentState, options = {}) {
   const {
     focus = 'all', // 'clarity', 'concision', 'style', 'all'
-    section = ''
+    section = '',
+    promptions = null
   } = options
 
   const content = documentState.getContent()
@@ -55,7 +56,13 @@ async function executeEditorAgent(documentState, options = {}) {
   }
 
   // Build system prompt
-  const systemPrompt = buildSystemPrompt(focus)
+  let systemPrompt = buildSystemPrompt(focus)
+
+  // Append promptions if available
+  if (promptions && !promptions.isEmpty()) {
+    const formatted = promptions.prettyPrintAsConversation()
+    systemPrompt += `\n\n## User Preferences\n${formatted.question}\n\n## Selected Options\n${formatted.answer}`
+  }
 
   // Build user prompt
   const userPrompt = buildUserPrompt({

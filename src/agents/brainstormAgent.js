@@ -41,14 +41,21 @@ async function executeBrainstormAgent(documentState, options = {}) {
   const {
     prompt = '',
     focusArea = 'general', // 'general', 'angles', 'structure', 'examples'
-    count = 5
+    count = 5,
+    promptions = null
   } = options
 
   const content = documentState.getContent()
   const metadata = documentState.getMetadata()
 
   // Build system prompt
-  const systemPrompt = buildSystemPrompt(focusArea)
+  let systemPrompt = buildSystemPrompt(focusArea)
+
+  // Append promptions if available
+  if (promptions && !promptions.isEmpty()) {
+    const formatted = promptions.prettyPrintAsConversation()
+    systemPrompt += `\n\n## User Preferences\n${formatted.question}\n\n## Selected Options\n${formatted.answer}`
+  }
 
   // Build user prompt
   const userPrompt = buildUserPrompt({

@@ -42,7 +42,8 @@ async function executeRevisionAgent(documentState, options = {}) {
   const {
     depth = 'full', // 'light', 'medium', 'full'
     focus = 'all', // 'structure', 'style', 'mechanics', 'all'
-    section = '' // Specific section to focus on
+    section = '', // Specific section to focus on
+    promptions = null
   } = options
 
   const content = documentState.getContent()
@@ -56,7 +57,13 @@ async function executeRevisionAgent(documentState, options = {}) {
   }
 
   // Build system prompt
-  const systemPrompt = buildSystemPrompt(depth, focus)
+  let systemPrompt = buildSystemPrompt(depth, focus)
+
+  // Append promptions if available
+  if (promptions && !promptions.isEmpty()) {
+    const formatted = promptions.prettyPrintAsConversation()
+    systemPrompt += `\n\n## User Preferences\n${formatted.question}\n\n## Selected Options\n${formatted.answer}`
+  }
 
   // Build user prompt
   const userPrompt = buildUserPrompt({

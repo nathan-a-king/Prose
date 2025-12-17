@@ -43,14 +43,21 @@ async function executeDraftAgent(documentState, options = {}) {
     outline = '',
     section = '',
     targetWords = 500,
-    onProgress = null
+    onProgress = null,
+    promptions = null
   } = options
 
   const content = documentState.getContent()
   const metadata = documentState.getMetadata()
 
   // Build system prompt
-  const systemPrompt = buildSystemPrompt()
+  let systemPrompt = buildSystemPrompt()
+
+  // Append promptions if available
+  if (promptions && !promptions.isEmpty()) {
+    const formatted = promptions.prettyPrintAsConversation()
+    systemPrompt += `\n\n## User Preferences\n${formatted.question}\n\n## Selected Options\n${formatted.answer}`
+  }
 
   // Build user prompt
   const userPrompt = buildUserPrompt({
