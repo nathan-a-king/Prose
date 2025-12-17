@@ -51,10 +51,19 @@ async function executeBrainstormAgent(documentState, options = {}) {
   // Build system prompt
   let systemPrompt = buildSystemPrompt(focusArea)
 
-  // Append promptions if available
+  // Append promptions if available - CRITICAL: These override default behavior
   if (promptions && !promptions.isEmpty()) {
     const formatted = promptions.prettyPrintAsConversation()
-    systemPrompt += `\n\n## User Preferences\n${formatted.question}\n\n## Selected Options\n${formatted.answer}`
+    systemPrompt += `\n\n## CRITICAL: User-Configured Preferences
+The user has explicitly configured the following preferences for this agent run.
+You MUST strictly adhere to these settings. They override any default instructions above.
+
+${formatted.question}
+
+## User's Selected Configuration:
+${formatted.answer}
+
+IMPORTANT: Only perform the specific actions and corrections specified in the user's configuration above. Do not expand beyond these explicit instructions.`
   }
 
   // Build user prompt
