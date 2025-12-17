@@ -8,6 +8,7 @@ import { documentApi } from '../services/documentApi'
 import { fileSystemApi, setupMenuListeners } from '../services/fileSystemApi'
 import AgentPanel from '../components/agents/AgentPanel'
 import ChangeProposalPanel from '../components/agents/ChangeProposalPanel'
+import SteerControlBar from '../components/agents/SteerControlBar'
 
 // Function to preprocess markdown to preserve blank lines
 function preprocessMarkdown(text) {
@@ -92,6 +93,13 @@ function HomePage() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [pendingAiAction, setPendingAiAction] = useState(null)
+  const [steeringState, setSteeringState] = useState(null)
+  const [steeringMeta, setSteeringMeta] = useState(null)
+
+  const handleSteeringChange = useCallback((nextState, meta) => {
+    setSteeringState(nextState)
+    setSteeringMeta(meta)
+  }, [])
 
   // Load recent files from localStorage on mount
   useEffect(() => {
@@ -1235,12 +1243,30 @@ function HomePage() {
               </button>
           </div>
         )}
-        
+
+        <div className="w-[800px] mx-auto mb-6 space-y-2">
+          <SteerControlBar onChange={handleSteeringChange} />
+          {steeringState && (
+            <div className="text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 shadow-sm flex flex-wrap gap-x-3 gap-y-1">
+              <span className="font-medium text-gray-800 dark:text-gray-100">Pass profile</span>
+              <span>Mode: {steeringState.mode}</span>
+              <span>Tone: {steeringState.tone}</span>
+              <span>Density: {steeringState.density}%</span>
+              <span>Risk: {steeringState.risk}%</span>
+              <span>Voice: {steeringState.preserveVoice ? 'Preserved' : 'Flexible'}</span>
+              <span>Safe rewrite: {steeringState.safeRewrite ? 'On' : 'Off'}</span>
+              {steeringMeta?.source && (
+                <span className="text-gray-500 dark:text-gray-400">Last change via {steeringMeta.source}{steeringMeta.debounced ? ' (debounced)' : ' (instant)'}</span>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Main content */}
         <div className="w-[800px] mx-auto bg-white dark:bg-neutral-700 shadow-xl rounded-lg">
-          {viewMode === 'edit' && (
-            <div className="relative">
-              {/* Syntax highlighting overlay - behind the textarea */}
+        {viewMode === 'edit' && (
+          <div className="relative">
+            {/* Syntax highlighting overlay - behind the textarea */}
               <div
                 className="absolute inset-0 p-12 text-lg font-light font-sans pointer-events-none overflow-hidden text-gray-900 dark:text-gray-100"
                 style={{
@@ -1284,7 +1310,7 @@ function HomePage() {
               />
             </div>
             )}
-            
+
             {viewMode === 'preview' && (
             <div className="p-16" style={{ minHeight: '11in' }}>
               <div className="prose prose-lg dark:prose-invert max-w-none">
@@ -1346,7 +1372,7 @@ function HomePage() {
                 </ReactMarkdown>
               </div>
             </div>
-          )}
+            )}
         </div>
 
         {/* API Key Modal */}
