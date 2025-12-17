@@ -72,13 +72,9 @@ function HomePage() {
   const [currentFilePath, setCurrentFilePath] = useState(null) // For filesystem documents
   const [saveStatus, setSaveStatus] = useState('') // '', 'saving', 'saved'
   const [viewMode, setViewMode] = useState('edit') // 'edit', 'preview'
-  const [aiSidebarOpen, setAiSidebarOpen] = useState(false)
   const [agentPanelOpen, setAgentPanelOpen] = useState(false)
   const [proposalPanelOpen, setProposalPanelOpen] = useState(false)
-  const [aiSuggestions, setAiSuggestions] = useState([])
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiQuestion, setAiQuestion] = useState('')
-  const [aiQuestionLoading, setAiQuestionLoading] = useState(false)
+  const [steeringPanelOpen, setSteeringPanelOpen] = useState(false)
   const autoSaveTimeout = useRef(null)
   const textareaRef = useRef(null)
   const editorRef = useRef(null)
@@ -90,9 +86,6 @@ function HomePage() {
   const [draggedDoc, setDraggedDoc] = useState(null)
   const [dragOverDocId, setDragOverDocId] = useState(null)
   const [dropPosition, setDropPosition] = useState('before') // 'before' or 'after'
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
-  const [apiKeyInput, setApiKeyInput] = useState('')
-  const [pendingAiAction, setPendingAiAction] = useState(null)
   const [steeringState, setSteeringState] = useState(null)
   const [steeringMeta, setSteeringMeta] = useState(null)
 
@@ -363,171 +356,6 @@ function HomePage() {
     return cleanup
   }, [newDocument, openFile, saveFileAs])
 
-  const getApiKey = () => {
-    return new Promise((resolve) => {
-      // Try to get API key from environment variable or localStorage
-      let apiKey = (typeof import.meta.env !== 'undefined' && import.meta.env.VITE_OPENAI_API_KEY) || undefined
-
-      if (!apiKey) {
-        apiKey = localStorage.getItem('openai_api_key')
-      }
-
-      if (apiKey) {
-        resolve(apiKey)
-      } else {
-        // Show modal to get API key from user
-        setPendingAiAction(() => resolve)
-        setShowApiKeyModal(true)
-      }
-    })
-  }
-
-  const handleApiKeySubmit = () => {
-    if (apiKeyInput.trim()) {
-      localStorage.setItem('openai_api_key', apiKeyInput.trim())
-      setShowApiKeyModal(false)
-      if (pendingAiAction) {
-        pendingAiAction(apiKeyInput.trim())
-        setPendingAiAction(null)
-      }
-      setApiKeyInput('')
-    }
-  }
-
-  const handleApiKeyCancel = () => {
-    setShowApiKeyModal(false)
-    setPendingAiAction(null)
-    setApiKeyInput('')
-  }
-
-  const askAIQuestion = async (question) => {
-    setAiQuestionLoading(true)
-    
-    try {
-      const apiKey = await getApiKey()
-      
-      if (!apiKey) {
-        throw new Error('No API key provided')
-      }
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful writing assistant. Answer the user\'s question about their document. Be concise and helpful. If the document is relevant to the question, reference specific parts of it.'
-            },
-            {
-              role: 'user',
-              content: `Document content:\n\n${text}\n\nQuestion: ${question}`
-            }
-          ],
-          max_tokens: 500,
-          temperature: 0.7
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(`API request failed: ${response.status} ${errorData.error?.message || ''}`)
-      }
-
-      const data = await response.json()
-      const answer = data.choices[0].message.content
-
-      // Add the Q&A to the suggestions list
-      const newSuggestion = {
-        title: `Q: ${question}`,
-        content: answer
-      }
-      
-      setAiSuggestions(prev => [newSuggestion, ...prev])
-      setAiQuestion('')
-      
-    } catch (error) {
-      console.error('Error asking AI question:', error)
-      const errorSuggestion = {
-        title: 'Error',
-        content: `Failed to get answer: ${error.message}`
-      }
-      setAiSuggestions(prev => [errorSuggestion, ...prev])
-    } finally {
-      setAiQuestionLoading(false)
-    }
-  }
-
-  const generateAISuggestions = async () => {
-    console.log('Generate AI suggestions clicked')
-    console.log('Current text:', text.substring(0, 100) + '...')
-    
-    setAiLoading(true)
-    setAiSuggestions([])
-    
-    try {
-      const apiKey = await getApiKey()
-      
-      if (!apiKey) {
-        throw new Error('No API key provided')
-      }
-      
-      console.log('Making API request...')
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful writing assistant. Analyze the given text and provide 3-4 specific, actionable suggestions to improve the writing. Focus on structure, clarity, engagement, and content development. Format each suggestion with a brief title and detailed explanation.'
-            },
-            {
-              role: 'user',
-              content: `Please analyze this text and provide writing suggestions:\n\n${text}`
-            }
-          ],
-          max_tokens: 800,
-          temperature: 0.7
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error('API Error:', response.status, errorData)
-        throw new Error(`API request failed: ${response.status} ${errorData.error?.message || ''}`)
-      }
-
-      const data = await response.json()
-      console.log('API Response:', data)
-      const suggestions = data.choices[0].message.content
-
-      // Parse the AI response into individual suggestions
-      const suggestionItems = suggestions.split('\n\n').filter(item => item.trim()).map((item, index) => ({
-        title: `Suggestion ${index + 1}`,
-        content: item.trim()
-      }))
-
-      console.log('Parsed suggestions:', suggestionItems)
-      setAiSuggestions(suggestionItems)
-    } catch (error) {
-      console.error('Error generating AI suggestions:', error)
-      setAiSuggestions([{
-        title: 'Error',
-        content: `Failed to generate suggestions: ${error.message}`
-      }])
-    } finally {
-      setAiLoading(false)
-    }
-  }
 
   const deleteDocument = async (docId, e) => {
     e.stopPropagation() // Prevent loading the document when clicking delete
@@ -765,6 +593,7 @@ function HomePage() {
                 if (!sidebarOpen) {
                   setAgentPanelOpen(false)
                   setProposalPanelOpen(false)
+                  setSteeringPanelOpen(false)
                 }
               }}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -848,14 +677,23 @@ function HomePage() {
             )}
           </button>
           
-          {/* AI suggestions toggle */}
+          {/* Steering controls toggle */}
           <button
-            onClick={() => setAiSidebarOpen(!aiSidebarOpen)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            title="Toggle AI suggestions"
+            onClick={() => {
+              setSteeringPanelOpen(!steeringPanelOpen)
+              if (!steeringPanelOpen) {
+                setSidebarOpen(false)
+                setAgentPanelOpen(false)
+                setProposalPanelOpen(false)
+              }
+            }}
+            className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ${
+              steeringPanelOpen ? 'bg-blue-100 dark:bg-blue-900/20' : ''
+            }`}
+            title="Toggle steering controls"
           >
             <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
             </svg>
           </button>
 
@@ -866,6 +704,7 @@ function HomePage() {
               if (!agentPanelOpen) {
                 setSidebarOpen(false)
                 setProposalPanelOpen(false)
+                setSteeringPanelOpen(false)
               }
             }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ${
@@ -885,6 +724,7 @@ function HomePage() {
               if (!proposalPanelOpen) {
                 setSidebarOpen(false)
                 setAgentPanelOpen(false)
+                setSteeringPanelOpen(false)
               }
             }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors relative ${
@@ -1000,86 +840,35 @@ function HomePage() {
           />
         </div>
 
-        {/* AI suggestions sidebar */}
-        <div className={`fixed top-24 right-8 bottom-8 w-80 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-10 flex flex-col ${
-          aiSidebarOpen ? 'translate-x-0' : 'translate-x-96'
+        {/* Steering Control Bar Panel */}
+        <div className={`fixed bottom-8 left-1/2 transform -translate-x-1/2 w-[800px] max-w-[calc(100vw-4rem)] bg-white dark:bg-neutral-700 shadow-xl rounded-lg transition-transform duration-300 ease-in-out z-20 overflow-hidden ${
+          steeringPanelOpen ? 'translate-y-0' : 'translate-y-[calc(100%+4rem)]'
         }`}>
-          {/* Header */}
-          <div className="p-6 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">AI Suggestions</h2>
-              <button
-                onClick={() => {
-                  setAiLoading(false)
-                  generateAISuggestions()
-                }}
-                disabled={aiLoading || !text.trim()}
-                className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors disabled:opacity-50"
-                title={`Generate suggestions ${aiLoading ? '(loading...)' : ''}`}
-              >
-                {aiLoading ? (
-                  <div className="w-4 h-4 border border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-          
-          {/* Scrollable content area */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            {aiSuggestions.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <p>Click the lightning icon to get AI suggestions for your writing</p>
-              </div>
-            ) : (
-              aiSuggestions.map((suggestion, index) => (
-                <div key={index} className="p-4 border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer">
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-2">{suggestion.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{suggestion.content}</p>
-                </div>
-              ))
-            )}
-          </div>
-          
-          {/* AI Question Input - Fixed at bottom */}
-          <div className="flex-shrink-0 p-4 bg-white dark:bg-neutral-700 border-t border-gray-200 dark:border-neutral-600 rounded-b-lg">
-            <form 
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (aiQuestion.trim() && !aiQuestionLoading) {
-                  askAIQuestion(aiQuestion)
-                }
-              }}
-              className="flex gap-2"
+          <div className="p-4 border-b border-gray-200 dark:border-neutral-600 flex items-center justify-between">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Steering Controls</h2>
+            <button
+              onClick={() => setSteeringPanelOpen(false)}
+              className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded transition-colors"
+              title="Close steering controls"
             >
-              <input
-                type="text"
-                value={aiQuestion}
-                onChange={(e) => setAiQuestion(e.target.value)}
-                placeholder="Ask a question..."
-                disabled={aiQuestionLoading}
-                className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={!aiQuestion.trim() || aiQuestionLoading}
-                className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {aiQuestionLoading ? (
-                  <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                )}
-              </button>
-            </form>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="p-4">
+            <SteerControlBar onChange={handleSteeringChange} />
+            {steeringState && (
+              <div className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 mt-4 flex flex-wrap gap-x-3 gap-y-1">
+                <span className="font-medium text-gray-800 dark:text-gray-100">Current profile</span>
+                <span>Mode: {steeringState.mode}</span>
+                <span>Tone: {steeringState.tone}</span>
+                <span>Density: {steeringState.density}%</span>
+                <span>Risk: {steeringState.risk}%</span>
+                <span>Voice: {steeringState.preserveVoice ? 'Preserved' : 'Flexible'}</span>
+                <span>Safe rewrite: {steeringState.safeRewrite ? 'On' : 'Off'}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1244,24 +1033,6 @@ function HomePage() {
           </div>
         )}
 
-        <div className="w-[800px] mx-auto mb-6 space-y-2">
-          <SteerControlBar onChange={handleSteeringChange} />
-          {steeringState && (
-            <div className="text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 shadow-sm flex flex-wrap gap-x-3 gap-y-1">
-              <span className="font-medium text-gray-800 dark:text-gray-100">Pass profile</span>
-              <span>Mode: {steeringState.mode}</span>
-              <span>Tone: {steeringState.tone}</span>
-              <span>Density: {steeringState.density}%</span>
-              <span>Risk: {steeringState.risk}%</span>
-              <span>Voice: {steeringState.preserveVoice ? 'Preserved' : 'Flexible'}</span>
-              <span>Safe rewrite: {steeringState.safeRewrite ? 'On' : 'Off'}</span>
-              {steeringMeta?.source && (
-                <span className="text-gray-500 dark:text-gray-400">Last change via {steeringMeta.source}{steeringMeta.debounced ? ' (debounced)' : ' (instant)'}</span>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Main content */}
         <div className="w-[800px] mx-auto bg-white dark:bg-neutral-700 shadow-xl rounded-lg">
         {viewMode === 'edit' && (
@@ -1375,49 +1146,6 @@ function HomePage() {
             )}
         </div>
 
-        {/* API Key Modal */}
-        {showApiKeyModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-neutral-800 rounded-lg p-6 w-96 max-w-md mx-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
-                OpenAI API Key Required
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Please enter your OpenAI API key to use AI features. It will be saved locally for future use.
-              </p>
-              <input
-                type="password"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="sk-..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleApiKeySubmit()
-                  } else if (e.key === 'Escape') {
-                    handleApiKeyCancel()
-                  }
-                }}
-                autoFocus
-              />
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={handleApiKeyCancel}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleApiKeySubmit}
-                  disabled={!apiKeyInput.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Save Key
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
