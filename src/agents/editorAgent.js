@@ -30,7 +30,7 @@ export const editorAgentContract = {
   config: {
     model: 'gpt-4o',
     temperature: 0.3,
-    maxTokens: 3000
+    maxTokens: 6000
   },
   execute: executeEditorAgent
 }

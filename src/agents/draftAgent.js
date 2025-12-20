@@ -29,7 +29,7 @@ export const draftAgentContract = {
   config: {
     model: 'gpt-4o',
     temperature: 0.8,
-    maxTokens: 3000
+    maxTokens: 6000
   },
   execute: executeDraftAgent
 }

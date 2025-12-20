@@ -30,7 +30,7 @@ export const argumentStrengthenerAgentContract = {
   config: {
     model: 'gpt-4o',
     temperature: 0.2, // Very low for logical analysis
-    maxTokens: 4000
+    maxTokens: 8000
   },
   execute: executeArgumentStrengthenerAgent
 }

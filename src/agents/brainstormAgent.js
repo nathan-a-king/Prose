@@ -29,7 +29,7 @@ export const brainstormAgentContract = {
   config: {
     model: 'gpt-4o',
     temperature: 0.9, // Higher temperature for creativity
-    maxTokens: 2000
+    maxTokens: 4000
   },
   execute: executeBrainstormAgent
 }

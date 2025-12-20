@@ -30,7 +30,7 @@ export const revisionAgentContract = {
   config: {
     model: 'gpt-4o',
     temperature: 0.3, // Lower temperature for analytical work
-    maxTokens: 4000
+    maxTokens: 8000
   },
   execute: executeRevisionAgent
 }
