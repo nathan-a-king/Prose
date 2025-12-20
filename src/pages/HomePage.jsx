@@ -65,7 +65,7 @@ function highlightMarkdownSyntax(text) {
 
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress } = useAgents()
+  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
@@ -75,6 +75,7 @@ function HomePage() {
   const [agentPanelOpen, setAgentPanelOpen] = useState(false)
   const [proposalPanelOpen, setProposalPanelOpen] = useState(false)
   const [steeringPanelOpen, setSteeringPanelOpen] = useState(false)
+  const previousProposalCountRef = useRef(0)
   const autoSaveTimeout = useRef(null)
   const textareaRef = useRef(null)
   const editorRef = useRef(null)
@@ -96,6 +97,23 @@ function HomePage() {
     setSteeringPanelOpen(true) // Auto-open panel when agent selected
     setAgentPanelOpen(false) // Close agent panel when steering panel opens
   }, [setSelectedAgent])
+
+  // Auto-open proposal panel when new proposals are generated
+  useEffect(() => {
+    const currentProposalCount = changeProposals.length
+    const previousCount = previousProposalCountRef.current
+
+    // Only auto-open if proposals increased (new proposals added)
+    if (currentProposalCount > previousCount && currentProposalCount > 0) {
+      setProposalPanelOpen(true)
+      // Close other panels when opening proposals
+      setSidebarOpen(false)
+      setAgentPanelOpen(false)
+      setSteeringPanelOpen(false)
+    }
+
+    previousProposalCountRef.current = currentProposalCount
+  }, [changeProposals])
 
   // Load recent files from localStorage on mount
   useEffect(() => {
