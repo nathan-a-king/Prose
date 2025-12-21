@@ -22,6 +22,8 @@ export function AgentProvider({ children }) {
   const [isExecuting, setIsExecuting] = useState(false)
   const [currentStep, setCurrentStep] = useState(null)
   const [executionProgress, setExecutionProgress] = useState(null)
+  const [currentPromptions, setCurrentPromptions] = useState(null)
+  const [selectedAgent, setSelectedAgent] = useState(null)
 
   // Initialize agent system on mount
   useEffect(() => {
@@ -74,7 +76,13 @@ export function AgentProvider({ children }) {
     setExecutionProgress({ type: 'agent', agentId, status: 'running' })
 
     try {
-      const result = await orchestrator.executeAgent(agentId, documentState, options)
+      // Merge promptions into options
+      const mergedOptions = {
+        ...options,
+        promptions: currentPromptions || options.promptions || null
+      }
+
+      const result = await orchestrator.executeAgent(agentId, documentState, mergedOptions)
 
       // Update proposals and annotations
       updateProposalsAndAnnotations(documentState)
@@ -88,7 +96,7 @@ export function AgentProvider({ children }) {
       setIsExecuting(false)
       setTimeout(() => setExecutionProgress(null), 3000)
     }
-  }, [documentState, orchestrator, updateProposalsAndAnnotations])
+  }, [documentState, orchestrator, updateProposalsAndAnnotations, currentPromptions])
 
   /**
    * Execute a pipeline
@@ -224,6 +232,8 @@ export function AgentProvider({ children }) {
     isExecuting,
     currentStep,
     executionProgress,
+    currentPromptions,
+    selectedAgent,
 
     // Actions
     initializeDocument,
@@ -236,6 +246,8 @@ export function AgentProvider({ children }) {
     getPendingProposals,
     getFilteredProposals,
     cancelExecution,
+    setCurrentPromptions,
+    setSelectedAgent,
 
     // Utilities
     getAgentsByStage,
