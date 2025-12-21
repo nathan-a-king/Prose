@@ -708,6 +708,26 @@ function HomePage() {
             )}
           </button>
           
+          {/* Agent Pipeline toggle */}
+          <button
+            onClick={() => {
+              setAgentPanelOpen(!agentPanelOpen)
+              if (!agentPanelOpen) {
+                setSidebarOpen(false)
+                setProposalPanelOpen(false)
+                setSteeringPanelOpen(false)
+              }
+            }}
+            className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ${
+              agentPanelOpen ? 'bg-blue-100 dark:bg-blue-900/20' : ''
+            }`}
+            title="Toggle Agent Pipeline"
+          >
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+            </svg>
+          </button>
+
           {/* Steering controls toggle */}
           <button
             onClick={() => {
@@ -725,26 +745,6 @@ function HomePage() {
           >
             <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-            </svg>
-          </button>
-
-          {/* Agent Pipeline toggle */}
-          <button
-            onClick={() => {
-              setAgentPanelOpen(!agentPanelOpen)
-              if (!agentPanelOpen) {
-                setSidebarOpen(false)
-                setProposalPanelOpen(false)
-                setSteeringPanelOpen(false)
-              }
-            }}
-            className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ${
-              agentPanelOpen ? 'bg-blue-100 dark:bg-blue-900/20' : ''
-            }`}
-            title="Toggle Agent Pipeline"
-          >
-            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
             </svg>
           </button>
 
