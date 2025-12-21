@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { useAgents } from '../../contexts/AgentContext'
 import { AGENT_STAGES } from '../../agents'
 
-export default function AgentPanel({ onClose }) {
+export default function AgentPanel({ onClose, onAgentSelected }) {
   const {
     agents,
     pipelines,
@@ -29,10 +29,16 @@ export default function AgentPanel({ onClose }) {
     ? agents
     : agents.filter(agent => agent.stage === selectedStage)
 
-  // Handle agent execution
+  // Handle agent execution - now triggers options panel
   const handleExecuteAgent = async (agentId) => {
     try {
-      await executeAgent(agentId)
+      // If onAgentSelected is provided, use Promptions flow
+      if (onAgentSelected) {
+        onAgentSelected(agentId)
+      } else {
+        // Fallback to direct execution
+        await executeAgent(agentId)
+      }
     } catch (error) {
       console.error('Agent execution failed:', error)
     }

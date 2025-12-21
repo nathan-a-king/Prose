@@ -30,7 +30,7 @@ export const revisionAgentContract = {
   config: {
     model: 'gpt-4o',
     temperature: 0.3, // Lower temperature for analytical work
-    maxTokens: 4000
+    maxTokens: 8000
   },
   execute: executeRevisionAgent
 }
@@ -42,7 +42,8 @@ async function executeRevisionAgent(documentState, options = {}) {
   const {
     depth = 'full', // 'light', 'medium', 'full'
     focus = 'all', // 'structure', 'style', 'mechanics', 'all'
-    section = '' // Specific section to focus on
+    section = '', // Specific section to focus on
+    promptions = null
   } = options
 
   const content = documentState.getContent()
@@ -56,7 +57,22 @@ async function executeRevisionAgent(documentState, options = {}) {
   }
 
   // Build system prompt
-  const systemPrompt = buildSystemPrompt(depth, focus)
+  let systemPrompt = buildSystemPrompt(depth, focus)
+
+  // Append promptions if available - CRITICAL: These override default behavior
+  if (promptions && !promptions.isEmpty()) {
+    const formatted = promptions.prettyPrintAsConversation()
+    systemPrompt += `\n\n## CRITICAL: User-Configured Preferences
+The user has explicitly configured the following preferences for this agent run.
+You MUST strictly adhere to these settings. They override any default instructions above.
+
+${formatted.question}
+
+## User's Selected Configuration:
+${formatted.answer}
+
+IMPORTANT: Only perform the specific actions and corrections specified in the user's configuration above. Do not expand beyond these explicit instructions.`
+  }
 
   // Build user prompt
   const userPrompt = buildUserPrompt({
