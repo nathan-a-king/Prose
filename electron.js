@@ -213,20 +213,33 @@ function createWindow() {
     show: true // Show immediately
   });
 
-  // Set Content Security Policy to allow OpenAI API calls and Google Fonts
+  // Set Content Security Policy based on environment
   const session = mainWindow.webContents.session;
   session.webRequest.onHeadersReceived((details, callback) => {
+    // Development CSP - relaxed for Vite HMR and React DevTools
+    const devCSP = [
+      "default-src 'self' http://localhost:* ws://localhost:*; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; " +
+      "style-src 'self' 'unsafe-inline' http://localhost:* https://fonts.googleapis.com; " +
+      "img-src 'self' data: http://localhost:*; " +
+      "connect-src 'self' http://localhost:* ws://localhost:* https://api.openai.com; " +
+      "font-src 'self' data: https://fonts.gstatic.com;"
+    ];
+
+    // Production CSP - strict, no unsafe directives
+    const prodCSP = [
+      "default-src 'self'; " +
+      "script-src 'self'; " +
+      "style-src 'self' https://fonts.googleapis.com; " +
+      "img-src 'self' data:; " +
+      "connect-src 'self' https://api.openai.com; " +
+      "font-src 'self' data: https://fonts.gstatic.com;"
+    ];
+
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self' http://localhost:* ws://localhost:*; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; " +
-          "style-src 'self' 'unsafe-inline' http://localhost:* https://fonts.googleapis.com; " +
-          "img-src 'self' data: http://localhost:*; " +
-          "connect-src 'self' http://localhost:* ws://localhost:* https://api.openai.com; " +
-          "font-src 'self' data: https://fonts.gstatic.com;"
-        ]
+        'Content-Security-Policy': isDev ? devCSP : prodCSP
       }
     });
   });

@@ -39,13 +39,8 @@ const MarkdownEditor = () => {
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="w-full h-full resize-none outline-none font-mono text-gray-900 dark:text-gray-100 bg-transparent placeholder-gray-400 dark:placeholder-gray-500"
+                className="w-full h-full resize-none outline-none font-mono text-gray-900 dark:text-gray-100 bg-transparent placeholder-gray-400 dark:placeholder-gray-500 markdown-editor-simple"
                 placeholder="Let's make something beautiful"
-                style={{
-                  lineHeight: '1.75',
-                  fontSize: '16px',
-                  fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace'
-                }}
                 spellCheck="false"
               />
             </div>
