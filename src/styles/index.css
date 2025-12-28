@@ -107,7 +107,6 @@
 
   .animate-slide-up {
     animation: slideUp 0.3s ease-out;
-    animation-delay: var(--animation-delay, 0ms);
   }
 
   /* CSP-compliant utilities */
