@@ -223,6 +223,11 @@ textarea:focus {
 
 /* CSP-compliant typography classes for markdown editor */
 
+/* Editor container min-height */
+.editor-container {
+  min-height: 11in;
+}
+
 /* Syntax highlighting overlay typography */
 .syntax-highlight-overlay {
   line-height: 1.9;
@@ -237,6 +242,8 @@ textarea:focus {
   line-height: 1.9;
   font-family: 'Avenir', 'Avenir Next', -apple-system, sans-serif;
   caret-color: var(--editor-caret-color);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Simple markdown editor component */

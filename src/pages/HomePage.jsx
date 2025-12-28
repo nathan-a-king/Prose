@@ -9,12 +9,58 @@ import { fileSystemApi, setupMenuListeners } from '../services/fileSystemApi'
 import AgentPanel from '../components/agents/AgentPanel'
 import ChangeProposalPanel from '../components/agents/ChangeProposalPanel'
 import PromptionsControlPanel from '../components/agents/PromptionsControlPanel'
-import SyntaxHighlighter from '../components/SyntaxHighlighter'
 
 // Function to preprocess markdown to preserve blank lines
 function preprocessMarkdown(text) {
   // Only add spacing for actual empty lines (3 or more consecutive newlines)
   return text.replace(/\n\s*\n\s*\n/g, '\n\n&nbsp;\n\n')
+}
+
+// Function to apply syntax highlighting for markdown
+function highlightMarkdownSyntax(text) {
+  if (!text) return ''
+
+  // Escape HTML to prevent XSS
+  const escapeHtml = (str) => {
+    const div = document.createElement('div')
+    div.textContent = str
+    return div.innerHTML
+  }
+
+  let html = escapeHtml(text)
+
+  // Apply highlighting to markdown syntax with lighter gray
+  const patterns = [
+    // Headers (at line start)
+    { regex: /^(#{1,6}\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Bold markers
+    { regex: /(\*\*|__)(.*?)(\*\*|__)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Italic markers (single * or _)
+    { regex: /(\*|_)([^\*_]+?)(\*|_)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Strikethrough
+    { regex: /(~~)(.*?)(~~)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Inline code
+    { regex: /(`)([^`]+?)(`)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Code blocks
+    { regex: /(```)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Blockquote (at line start)
+    { regex: /^(&gt;\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Unordered lists (at line start)
+    { regex: /^([\*\-\+]\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Ordered lists (at line start)
+    { regex: /^(\d+\.\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+    // Link brackets
+    { regex: /(\[)([^\]]+?)(\])/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    { regex: /(\()([^\)]+?)(\))/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
+    // Horizontal rules (full line)
+    { regex: /^(---|\*\*\*|___)$/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
+  ]
+
+  patterns.forEach(({ regex, replacement }) => {
+    html = html.replace(regex, replacement)
+  })
+
+  return html
 }
 
 function HomePage() {
@@ -1053,13 +1099,14 @@ function HomePage() {
         )}
 
         {/* Main content */}
-        <div className="w-[800px] mx-auto bg-white dark:bg-neutral-700 shadow-xl rounded-lg">
+        <div className="w-[800px] mx-auto bg-white dark:bg-neutral-700 shadow-xl rounded-lg editor-container">
         {viewMode === 'edit' && (
           <div className="relative">
             {/* Syntax highlighting overlay - behind the textarea */}
-              <div className="absolute inset-0 p-12 text-lg font-light font-sans pointer-events-none overflow-hidden text-gray-900 dark:text-gray-100 syntax-highlight-overlay">
-                <SyntaxHighlighter text={text} />
-              </div>
+              <div
+                className="absolute inset-0 p-12 text-lg font-light font-sans pointer-events-none overflow-hidden text-gray-900 dark:text-gray-100 syntax-highlight-overlay"
+                dangerouslySetInnerHTML={{ __html: highlightMarkdownSyntax(text) || '<span class="text-gray-400 dark:text-gray-500">Start writing markdown...</span>' }}
+              />
               {/* Actual textarea - transparent text but visible caret */}
               <textarea
                 ref={textareaRef}
@@ -1082,7 +1129,7 @@ function HomePage() {
                   }
                 }}
                 placeholder=""
-                className="relative w-full p-12 bg-transparent border-0 resize-none focus:outline-none text-transparent text-lg font-light font-sans markdown-editor-textarea"
+                className="relative w-full p-12 bg-transparent border-0 resize-none focus:outline-none text-transparent text-lg font-light font-sans markdown-editor-textarea caret-gray-900 dark:caret-gray-100"
                 spellCheck="false"
               />
             </div>
