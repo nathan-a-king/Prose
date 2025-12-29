@@ -2,35 +2,47 @@
  * AI Service for Agent System
  *
  * Provides unified interface for making AI calls from agents.
- * Handles API key management, rate limiting, and error handling.
+ * Routes all requests through backend proxy for security.
+ * API keys are encrypted via Electron safeStorage.
  */
 
 const DEFAULT_MODEL = 'gpt-4o'
-const API_ENDPOINT = 'https://api.openai.com/v1/chat/completions'
 
 /**
- * Get API key from environment or localStorage
+ * Get API key from secure storage
  */
-function getApiKey() {
-  // Try environment variable (works in development with Vite)
-  // Using optional chaining and checking if import.meta.env exists
-  const envKey = (typeof import.meta.env !== 'undefined' && import.meta.env.VITE_OPENAI_API_KEY) || undefined
-
-  // Try localStorage (works in both dev and production)
-  const storedKey = localStorage.getItem('openai_api_key')
-
-  // Return whichever is available
-  const apiKey = envKey || storedKey
-
-  if (!apiKey) {
-    console.warn('OpenAI API key not found. Please set it in the app or in environment.')
+async function getApiKey() {
+  // Try secure storage first (Electron safeStorage)
+  if (window.secureStorage) {
+    try {
+      const key = await window.secureStorage.get('openai_api_key')
+      if (key) {
+        return key
+      }
+    } catch (error) {
+      console.error('[AI Service] Error retrieving key from secure storage:', error)
+    }
   }
 
-  return apiKey
+  // Migration fallback: check localStorage
+  const storedKey = localStorage.getItem('openai_api_key')
+  if (storedKey) {
+    console.warn('[AI Service] Found key in localStorage. Please save it in Settings to encrypt it.')
+    return storedKey
+  }
+
+  // Dev fallback: environment variable
+  const envKey = import.meta.env?.VITE_OPENAI_API_KEY
+  if (envKey) {
+    console.warn('[AI Service] Using environment variable API key')
+    return envKey
+  }
+
+  return null
 }
 
 /**
- * Make a completion request to OpenAI
+ * Make a completion request to OpenAI via backend proxy
  */
 export async function makeCompletion(options) {
   const {
@@ -42,9 +54,9 @@ export async function makeCompletion(options) {
     responseFormat = 'text' // 'text' or 'json'
   } = options
 
-  const apiKey = getApiKey()
+  const apiKey = await getApiKey()
   if (!apiKey) {
-    throw new Error('OpenAI API key not configured')
+    throw new Error('OpenAI API key not configured. Please set it in Settings.')
   }
 
   const messages = [
@@ -67,11 +79,11 @@ export async function makeCompletion(options) {
   try {
     console.log('[AI Service] Making completion request...', { model, temperature, maxTokens })
 
-    const response = await fetch(API_ENDPOINT, {
+    const response = await fetch('/api/ai/completion', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'X-API-Key': apiKey
       },
       body: JSON.stringify(requestBody)
     })
@@ -80,7 +92,14 @@ export async function makeCompletion(options) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      const errorMessage = `OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`
+      let errorMessage = errorData.error || `API error: ${response.status}`
+
+      if (response.status === 401) {
+        errorMessage = 'Invalid API key. Please check your OpenAI API key in Settings.'
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.'
+      }
+
       console.error('[AI Service] API Error:', errorMessage, errorData)
       throw new Error(errorMessage)
     }
@@ -108,7 +127,7 @@ export async function makeCompletion(options) {
 }
 
 /**
- * Make a streaming completion request
+ * Make a streaming completion request via backend proxy
  */
 export async function makeStreamingCompletion(options, onChunk) {
   const {
@@ -119,9 +138,9 @@ export async function makeStreamingCompletion(options, onChunk) {
     maxTokens = 4000
   } = options
 
-  const apiKey = getApiKey()
+  const apiKey = await getApiKey()
   if (!apiKey) {
-    throw new Error('OpenAI API key not configured')
+    throw new Error('OpenAI API key not configured. Please set it in Settings.')
   }
 
   const messages = [
@@ -132,18 +151,17 @@ export async function makeStreamingCompletion(options, onChunk) {
   try {
     console.log('[AI Service] Making streaming completion request...', { model, temperature, maxTokens })
 
-    const response = await fetch(API_ENDPOINT, {
+    const response = await fetch('/api/ai/completion/stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'X-API-Key': apiKey
       },
       body: JSON.stringify({
         model,
         messages,
         temperature,
-        max_tokens: maxTokens,
-        stream: true
+        max_tokens: maxTokens
       })
     })
 
@@ -151,7 +169,14 @@ export async function makeStreamingCompletion(options, onChunk) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      const errorMessage = `OpenAI API error: ${response.status} ${errorData.error?.message || response.statusText}`
+      let errorMessage = errorData.error || `API error: ${response.status}`
+
+      if (response.status === 401) {
+        errorMessage = 'Invalid API key. Please check your OpenAI API key in Settings.'
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.'
+      }
+
       console.error('[AI Service] Streaming API Error:', errorMessage, errorData)
       throw new Error(errorMessage)
     }
@@ -180,13 +205,13 @@ export async function makeStreamingCompletion(options, onChunk) {
               onChunk(content)
             }
           } catch (error) {
-            console.error('Failed to parse stream chunk:', data)
+            console.error('[AI Service] Failed to parse stream chunk:', data)
           }
         }
       }
     }
   } catch (error) {
-    console.error('Streaming AI Service Error:', error)
+    console.error('[AI Service] Streaming Error:', error)
     throw error
   }
 }
@@ -202,6 +227,7 @@ export function estimateTokens(text) {
 /**
  * Check if API key is configured
  */
-export function isApiKeyConfigured() {
-  return !!getApiKey()
+export async function isApiKeyConfigured() {
+  const key = await getApiKey()
+  return !!key
 }

@@ -35,3 +35,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeOpenFileListener: () => ipcRenderer.removeAllListeners('menu:openFile'),
   removeSaveFileAsListener: () => ipcRenderer.removeAllListeners('menu:saveFileAs'),
 });
+
+// Expose secure storage APIs to the renderer process
+contextBridge.exposeInMainWorld('secureStorage', {
+  // Set encrypted value
+  set: (key, value) => ipcRenderer.invoke('secure-storage:set', key, value),
+
+  // Get decrypted value
+  get: (key) => ipcRenderer.invoke('secure-storage:get', key),
+
+  // Check if key exists
+  has: (key) => ipcRenderer.invoke('secure-storage:has', key),
+
+  // Delete key
+  delete: (key) => ipcRenderer.invoke('secure-storage:delete', key)
+});
