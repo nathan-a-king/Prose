@@ -110,6 +110,7 @@ export class Orchestrator {
     this.pipelines = new Map()
     this.executionHistory = []
     this.currentExecution = null
+    this.currentAbort = null // Track current stream abort function
   }
 
   /**
@@ -158,6 +159,13 @@ export class Orchestrator {
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i]
 
+        // Abort previous step's stream before starting next
+        if (this.currentAbort) {
+          console.log(`[Orchestrator] Aborting previous step's stream before starting step ${i}`)
+          this.currentAbort()
+          this.currentAbort = null
+        }
+
         // Notify step start
         if (onStepStart) {
           onStepStart(i, step)
@@ -174,6 +182,11 @@ export class Orchestrator {
           ...step.options,
           onProgress: onProgress ? (data) => onProgress(i, data) : null
         })
+
+        // Store abort function for this step
+        if (result.abort) {
+          this.currentAbort = result.abort
+        }
 
         // Record result
         execution.addStepResult(i, result)
@@ -192,12 +205,14 @@ export class Orchestrator {
       execution.complete()
       this.executionHistory.push(execution)
       this.currentExecution = null
+      this.currentAbort = null
 
       return execution
     } catch (error) {
       execution.fail(error.message)
       this.executionHistory.push(execution)
       this.currentExecution = null
+      this.currentAbort = null
       throw error
     }
   }
@@ -211,7 +226,14 @@ export class Orchestrator {
       throw new Error(`Agent ${agentId} not found`)
     }
 
-    return await agent.execute(documentState, options)
+    const result = await agent.execute(documentState, options)
+
+    // Store abort function if returned for potential cancellation
+    if (result.abort) {
+      this.currentAbort = result.abort
+    }
+
+    return result
   }
 
   /**
@@ -225,6 +247,13 @@ export class Orchestrator {
    * Cancel current execution
    */
   cancelCurrentExecution() {
+    // Abort streaming request if active
+    if (this.currentAbort) {
+      console.log('[Orchestrator] Aborting current streaming request')
+      this.currentAbort()
+      this.currentAbort = null
+    }
+
     if (this.currentExecution) {
       this.currentExecution.cancel()
       this.executionHistory.push(this.currentExecution)

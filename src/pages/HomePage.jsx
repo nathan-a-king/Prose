@@ -20,7 +20,7 @@ function preprocessMarkdown(text) {
 
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals } = useAgents()
+  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals, cancelExecution } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
@@ -344,6 +344,16 @@ function HomePage() {
 
     return cleanup
   }, [newDocument, openFile, saveFileAs])
+
+  // Cleanup: abort any streaming requests when component unmounts
+  useEffect(() => {
+    return () => {
+      if (isExecuting) {
+        console.log('[HomePage] Unmounting with active execution, aborting streams...')
+        cancelExecution()
+      }
+    }
+  }, [isExecuting, cancelExecution])
 
 
   const deleteDocument = async (docId, e) => {

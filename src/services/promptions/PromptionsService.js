@@ -93,7 +93,7 @@ class PromptionsService {
 
       let accumulated = ''
 
-      await makeStreamingCompletion(
+      const abort = await makeStreamingCompletion(
         {
           systemPrompt,
           userPrompt,
@@ -118,10 +118,16 @@ class PromptionsService {
       const jsonString = this._extractJSON(accumulated)
       const finalOptions = this.basicOptionSet.validateJSON(jsonString)
 
-      return finalOptions || this.basicOptionSet.emptyOptions()
+      return {
+        options: finalOptions || this.basicOptionSet.emptyOptions(),
+        abort
+      }
     } catch (error) {
       console.error('[PromptionsService] Error streaming options:', error)
-      return this.basicOptionSet.emptyOptions()
+      return {
+        options: this.basicOptionSet.emptyOptions(),
+        abort: null
+      }
     }
   }
 
