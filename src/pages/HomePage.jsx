@@ -9,58 +9,13 @@ import { fileSystemApi, setupMenuListeners } from '../services/fileSystemApi'
 import AgentPanel from '../components/agents/AgentPanel'
 import ChangeProposalPanel from '../components/agents/ChangeProposalPanel'
 import PromptionsControlPanel from '../components/agents/PromptionsControlPanel'
+import SettingsPanel from '../components/settings/SettingsPanel'
+import SyntaxHighlighter from '../components/SyntaxHighlighter'
 
 // Function to preprocess markdown to preserve blank lines
 function preprocessMarkdown(text) {
   // Only add spacing for actual empty lines (3 or more consecutive newlines)
   return text.replace(/\n\s*\n\s*\n/g, '\n\n&nbsp;\n\n')
-}
-
-// Function to apply syntax highlighting for markdown
-function highlightMarkdownSyntax(text) {
-  if (!text) return ''
-
-  // Escape HTML
-  const escapeHtml = (str) => {
-    const div = document.createElement('div')
-    div.textContent = str
-    return div.innerHTML
-  }
-
-  let html = escapeHtml(text)
-
-  // Apply highlighting to markdown syntax with lighter gray
-  const patterns = [
-    // Headers (at line start)
-    { regex: /^(#{1,6}\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
-    // Bold markers
-    { regex: /(\*\*|__)(.*?)(\*\*|__)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
-    // Italic markers (single * or _)
-    { regex: /(\*|_)([^\*_]+?)(\*|_)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
-    // Strikethrough
-    { regex: /(~~)(.*?)(~~)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
-    // Inline code
-    { regex: /(`)([^`]+?)(`)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
-    // Code blocks
-    { regex: /(```)/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
-    // Blockquote (at line start)
-    { regex: /^(&gt;\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
-    // Unordered lists (at line start)
-    { regex: /^([\*\-\+]\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
-    // Ordered lists (at line start)
-    { regex: /^(\d+\.\s)/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
-    // Link brackets
-    { regex: /(\[)([^\]]+?)(\])/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
-    { regex: /(\()([^\)]+?)(\))/g, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>' },
-    // Horizontal rules (full line)
-    { regex: /^(---|\*\*\*|___)$/gm, replacement: '<span class="text-gray-400 dark:text-gray-500">$1</span>' },
-  ]
-
-  patterns.forEach(({ regex, replacement }) => {
-    html = html.replace(regex, replacement)
-  })
-
-  return html
 }
 
 function HomePage() {
@@ -75,6 +30,7 @@ function HomePage() {
   const [agentPanelOpen, setAgentPanelOpen] = useState(false)
   const [proposalPanelOpen, setProposalPanelOpen] = useState(false)
   const [steeringPanelOpen, setSteeringPanelOpen] = useState(false)
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false)
   const previousProposalCountRef = useRef(0)
   const autoSaveTimeout = useRef(null)
   const textareaRef = useRef(null)
@@ -97,6 +53,18 @@ function HomePage() {
     setSteeringPanelOpen(true) // Auto-open panel when agent selected
     setAgentPanelOpen(false) // Close agent panel when steering panel opens
   }, [setSelectedAgent])
+
+  // Set platform-specific padding for macOS traffic light buttons
+  useEffect(() => {
+    const isMac = window.navigator.userAgent.toLowerCase().includes('mac')
+    document.documentElement.style.setProperty('--window-controls-offset', isMac ? '80px' : '0')
+  }, [])
+
+  // Set caret color based on theme
+  useEffect(() => {
+    const caretColor = isDarkMode ? '#f3f4f6' : '#111827'
+    document.documentElement.style.setProperty('--editor-caret-color', caretColor)
+  }, [isDarkMode])
 
   // Auto-open proposal panel when new proposals are generated
   useEffect(() => {
@@ -606,7 +574,7 @@ function HomePage() {
       <div className="fixed top-0 left-0 right-0 z-30 bg-white/50 dark:bg-neutral-900/50 backdrop-blur-sm border-b border-gray-200/30 dark:border-neutral-700/30 draggable">
         {/* Main header content - single row layout */}
         <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4" style={{ paddingLeft: window.navigator.userAgent.toLowerCase().includes('mac') ? '80px' : '0' }}>
+          <div className="flex items-center gap-4 mac-window-padding">
             {/* Recent Files sidebar toggle */}
             <button
               onClick={() => {
@@ -707,7 +675,21 @@ function HomePage() {
               </svg>
             )}
           </button>
-          
+
+          {/* Settings toggle */}
+          <button
+            onClick={() => setSettingsPanelOpen(true)}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            title="Settings"
+          >
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+
           {/* Agent Pipeline toggle */}
           <button
             onClick={() => {
@@ -926,14 +908,19 @@ function HomePage() {
           </div>
         </div>
 
+        {/* Settings Panel */}
+        <SettingsPanel
+          isOpen={settingsPanelOpen}
+          onClose={() => setSettingsPanelOpen(false)}
+        />
+
         {/* Floating Formatting Toolbar */}
         {viewMode === 'edit' && (
           <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-20 bg-white dark:bg-neutral-700 shadow-lg rounded-lg px-2 py-1.5 flex items-center gap-1 border border-gray-200 dark:border-neutral-600">
               {/* Heading dropdown */}
-              <select 
+              <select
                 onChange={(e) => e.target.value && insertHeading(parseInt(e.target.value))}
                 className="px-2 py-1 text-sm bg-white dark:bg-neutral-700 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded cursor-pointer outline-none text-gray-700 dark:text-gray-300 appearance-none pr-6"
-                style={{ backgroundImage: 'none' }}
                 value=""
               >
                 <option value="">H</option>
@@ -1088,20 +1075,13 @@ function HomePage() {
         )}
 
         {/* Main content */}
-        <div className="w-[800px] mx-auto bg-white dark:bg-neutral-700 shadow-xl rounded-lg">
+        <div className="w-[800px] mx-auto bg-white dark:bg-neutral-700 shadow-xl rounded-lg editor-container">
         {viewMode === 'edit' && (
           <div className="relative">
             {/* Syntax highlighting overlay - behind the textarea */}
-              <div
-                className="absolute inset-0 p-12 text-lg font-light font-sans pointer-events-none overflow-hidden text-gray-900 dark:text-gray-100"
-                style={{
-                  lineHeight: '1.9',
-                  fontFamily: 'Avenir, Avenir Next, -apple-system, sans-serif',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word'
-                }}
-                dangerouslySetInnerHTML={{ __html: highlightMarkdownSyntax(text) || '<span class="text-gray-400 dark:text-gray-500">Start writing markdown...</span>' }}
-              />
+              <div className="absolute inset-0 p-12 text-lg font-light font-sans pointer-events-none overflow-hidden text-gray-900 dark:text-gray-100 syntax-highlight-overlay">
+                <SyntaxHighlighter text={text} />
+              </div>
               {/* Actual textarea - transparent text but visible caret */}
               <textarea
                 ref={textareaRef}
@@ -1124,20 +1104,14 @@ function HomePage() {
                   }
                 }}
                 placeholder=""
-                className="relative w-full p-12 bg-transparent border-0 resize-none focus:outline-none text-transparent text-lg font-light font-sans caret-gray-900 dark:caret-gray-100"
-                style={{
-                  minHeight: '11in',
-                  lineHeight: '1.9',
-                  fontFamily: 'Avenir, Avenir Next, -apple-system, sans-serif',
-                  caretColor: isDarkMode ? '#f3f4f6' : '#111827'
-                }}
+                className="relative w-full p-12 bg-transparent border-0 resize-none focus:outline-none text-transparent text-lg font-light font-sans markdown-editor-textarea caret-gray-900 dark:caret-gray-100"
                 spellCheck="false"
               />
             </div>
             )}
 
             {viewMode === 'preview' && (
-            <div className="p-16" style={{ minHeight: '11in' }}>
+            <div className="p-16 preview-container">
               <div className="prose prose-lg dark:prose-invert max-w-none">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -1147,17 +1121,17 @@ function HomePage() {
                       if (!children || (Array.isArray(children) && children.length === 0)) {
                         return <div className="h-6" />;
                       }
-                      return <p className="mb-6 text-lg leading-relaxed text-gray-700 dark:text-gray-300 text-justify font-light font-sans" style={{ lineHeight: '1.8', fontFamily: 'Avenir, Avenir Next, -apple-system, sans-serif' }}>{children}</p>;
+                      return <p className="mb-6 text-lg leading-relaxed text-gray-700 dark:text-gray-300 text-justify font-light font-sans preview-paragraph">{children}</p>;
                     },
-                    h1: ({ children }) => <h1 className="text-4xl font-normal text-gray-900 dark:text-gray-100 mb-8 mt-2 text-center" style={{ lineHeight: '1.2', fontWeight: '400' }}>{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-3xl font-normal text-gray-900 dark:text-gray-100 mb-6 mt-8" style={{ lineHeight: '1.3', fontWeight: '400' }}>{children}</h2>,
-                    h3: ({ children }) => <h3 className="text-2xl font-normal text-gray-900 dark:text-gray-100 mb-4 mt-6" style={{ lineHeight: '1.4', fontWeight: '400' }}>{children}</h3>,
-                    h4: ({ children }) => <h4 className="text-xl font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4" style={{ lineHeight: '1.4', fontWeight: '400' }}>{children}</h4>,
-                    h5: ({ children }) => <h5 className="text-lg font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4" style={{ lineHeight: '1.5', fontWeight: '400' }}>{children}</h5>,
-                    h6: ({ children }) => <h6 className="text-base font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4" style={{ lineHeight: '1.5', fontWeight: '400' }}>{children}</h6>,
+                    h1: ({ children }) => <h1 className="text-4xl font-normal text-gray-900 dark:text-gray-100 mb-8 mt-2 text-center preview-h1">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-3xl font-normal text-gray-900 dark:text-gray-100 mb-6 mt-8 preview-h2">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-2xl font-normal text-gray-900 dark:text-gray-100 mb-4 mt-6 preview-h3">{children}</h3>,
+                    h4: ({ children }) => <h4 className="text-xl font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h4">{children}</h4>,
+                    h5: ({ children }) => <h5 className="text-lg font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h5">{children}</h5>,
+                    h6: ({ children }) => <h6 className="text-base font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h6">{children}</h6>,
                     ul: ({ children }) => <ul className="mb-6 list-disc pl-6 space-y-2 text-lg text-gray-700 dark:text-gray-300 font-light">{children}</ul>,
                     ol: ({ children }) => <ol className="mb-6 list-decimal pl-6 space-y-2 text-lg text-gray-700 dark:text-gray-300 font-light">{children}</ol>,
-                    li: ({ children }) => <li className="leading-relaxed" style={{ lineHeight: '1.8' }}>{children}</li>,
+                    li: ({ children }) => <li className="leading-relaxed preview-li">{children}</li>,
                     blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 dark:border-neutral-600 pl-6 my-6 italic text-gray-700 dark:text-gray-300">{children}</blockquote>,
                     code: ({ inline, children }) => {
                       if (inline) {

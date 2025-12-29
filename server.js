@@ -29,6 +29,98 @@ console.log('Build path:', buildPath)
 app.use(express.json())
 app.use(express.static(buildPath))
 
+// AI Proxy Routes - Forward requests to OpenAI API
+app.post('/api/ai/completion', async (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key']
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key required' })
+    }
+
+    const { model = 'gpt-4o', messages, temperature = 0.7, max_tokens = 4000, response_format } = req.body
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array required' })
+    }
+
+    const requestBody = { model, messages, temperature, max_tokens }
+    if (response_format) {
+      requestBody.response_format = response_format
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return res.status(response.status).json({
+        error: errorData.error?.message || 'OpenAI API error'
+      })
+    }
+
+    const data = await response.json()
+    res.json(data)
+  } catch (error) {
+    console.error('AI completion error:', error)
+    res.status(500).json({ error: 'Failed to process AI request' })
+  }
+})
+
+app.post('/api/ai/completion/stream', async (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key']
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key required' })
+    }
+
+    const { model = 'gpt-4o', messages, temperature = 0.7, max_tokens = 4000 } = req.body
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array required' })
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({ model, messages, temperature, max_tokens, stream: true })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return res.status(response.status).json({
+        error: errorData.error?.message || 'OpenAI API error'
+      })
+    }
+
+    // Set headers for SSE
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+
+    // Pipe the stream directly to the client
+    response.body.pipe(res)
+
+    // Handle client disconnect
+    req.on('close', () => {
+      response.body.destroy()
+    })
+  } catch (error) {
+    console.error('AI streaming error:', error)
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to process AI streaming request' })
+    }
+  }
+})
+
 // API Routes
 app.get('/api/documents', (req, res) => {
   try {

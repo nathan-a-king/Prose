@@ -100,13 +100,25 @@
   .text-gradient {
     @apply bg-gradient-to-r from-primary-600 to-primary-400 dark:from-primary-400 dark:to-primary-200 bg-clip-text text-transparent;
   }
-  
+
   .animate-fade-in {
     animation: fadeIn 0.5s ease-in-out;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.3s ease-out;
+  }
+
+  /* CSP-compliant utilities */
+
+  /* Platform-specific window controls offset */
+  .mac-window-padding {
+    padding-left: var(--window-controls-offset, 0);
+  }
+
+  /* Remove select arrow background if needed */
+  .select-no-arrow {
+    background-image: none;
   }
 }
 

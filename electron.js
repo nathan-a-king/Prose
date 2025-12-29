@@ -213,20 +213,33 @@ function createWindow() {
     show: true // Show immediately
   });
 
-  // Set Content Security Policy to allow OpenAI API calls and Google Fonts
+  // Set Content Security Policy based on environment
   const session = mainWindow.webContents.session;
   session.webRequest.onHeadersReceived((details, callback) => {
+    // Development CSP - relaxed for Vite HMR and React DevTools
+    const devCSP = [
+      "default-src 'self' http://localhost:* ws://localhost:*; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; " +
+      "style-src 'self' 'unsafe-inline' http://localhost:* https://fonts.googleapis.com; " +
+      "img-src 'self' data: http://localhost:*; " +
+      "connect-src 'self' http://localhost:* ws://localhost:*; " +
+      "font-src 'self' data: https://fonts.gstatic.com;"
+    ];
+
+    // Production CSP - strict, no unsafe directives
+    const prodCSP = [
+      "default-src 'self'; " +
+      "script-src 'self'; " +
+      "style-src 'self' https://fonts.googleapis.com; " +
+      "img-src 'self' data:; " +
+      "connect-src 'self'; " +
+      "font-src 'self' data: https://fonts.gstatic.com;"
+    ];
+
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self' http://localhost:* ws://localhost:*; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; " +
-          "style-src 'self' 'unsafe-inline' http://localhost:* https://fonts.googleapis.com; " +
-          "img-src 'self' data: http://localhost:*; " +
-          "connect-src 'self' http://localhost:* ws://localhost:* https://api.openai.com; " +
-          "font-src 'self' data: https://fonts.gstatic.com;"
-        ]
+        'Content-Security-Policy': isDev ? devCSP : prodCSP
       }
     });
   });
@@ -478,6 +491,84 @@ ipcMain.handle('file:getInfo', async (event, filePath) => {
 
 ipcMain.handle('file:exists', async (event, filePath) => {
   return fs.existsSync(filePath);
+});
+
+// Secure Storage IPC Handlers for API key encryption
+ipcMain.handle('secure-storage:set', async (event, key, value) => {
+  try {
+    const { safeStorage } = await import('electron');
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Encryption not available on this system');
+    }
+
+    const encrypted = safeStorage.encryptString(value);
+    const base64 = encrypted.toString('base64');
+
+    // Store in userData directory
+    const userDataPath = app.getPath('userData');
+    const keyFilePath = path.join(userDataPath, `${key}.enc`);
+    fs.writeFileSync(keyFilePath, base64, 'utf-8');
+
+    console.log(`[Secure Storage] Encrypted key stored: ${key}`);
+    return { success: true };
+  } catch (error) {
+    console.error('[Secure Storage] Error encrypting key:', error);
+    throw new Error(`Failed to store key: ${error.message}`);
+  }
+});
+
+ipcMain.handle('secure-storage:get', async (event, key) => {
+  try {
+    const { safeStorage } = await import('electron');
+    const userDataPath = app.getPath('userData');
+    const keyFilePath = path.join(userDataPath, `${key}.enc`);
+
+    if (!fs.existsSync(keyFilePath)) {
+      return null;
+    }
+
+    const base64 = fs.readFileSync(keyFilePath, 'utf-8');
+    const encrypted = Buffer.from(base64, 'base64');
+
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Encryption not available on this system');
+    }
+
+    const decrypted = safeStorage.decryptString(encrypted);
+    console.log(`[Secure Storage] Key retrieved: ${key}`);
+    return decrypted;
+  } catch (error) {
+    console.error('[Secure Storage] Error decrypting key:', error);
+    throw new Error(`Failed to retrieve key: ${error.message}`);
+  }
+});
+
+ipcMain.handle('secure-storage:has', async (event, key) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const keyFilePath = path.join(userDataPath, `${key}.enc`);
+    return fs.existsSync(keyFilePath);
+  } catch (error) {
+    console.error('[Secure Storage] Error checking key existence:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('secure-storage:delete', async (event, key) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const keyFilePath = path.join(userDataPath, `${key}.enc`);
+
+    if (fs.existsSync(keyFilePath)) {
+      fs.unlinkSync(keyFilePath);
+      console.log(`[Secure Storage] Key deleted: ${key}`);
+      return { success: true };
+    }
+    return { success: false, error: 'Key not found' };
+  } catch (error) {
+    console.error('[Secure Storage] Error deleting key:', error);
+    throw new Error(`Failed to delete key: ${error.message}`);
+  }
 });
 
 app.whenReady().then(async () => {

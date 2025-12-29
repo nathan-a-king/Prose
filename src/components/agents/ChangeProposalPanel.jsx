@@ -173,7 +173,6 @@ function AgentProposalGroup({
   return (
     <div
       className="border border-gray-200 dark:border-neutral-700 rounded-lg p-4 animate-slide-up"
-      style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="flex items-center justify-between mb-3">
         <div>
@@ -240,7 +239,6 @@ function ProposalCard({ proposal, onApprove, onReject, isExpanded, onToggleExpan
           ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/10'
           : 'border-gray-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-600'
       }`}
-      style={{ animationDelay: `${index * 30}ms` }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
