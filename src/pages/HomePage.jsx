@@ -20,7 +20,7 @@ function preprocessMarkdown(text) {
 
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals, cancelExecution } = useAgents()
+  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals, cancelExecution } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
