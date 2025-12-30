@@ -80,10 +80,11 @@ IMPORTANT: Only perform the specific actions and corrections specified in the us
 
   try {
     let draftContent = ''
+    let abort = null
 
     if (onProgress) {
       // Streaming mode
-      await makeStreamingCompletion(
+      abort = await makeStreamingCompletion(
         {
           systemPrompt,
           userPrompt,
@@ -124,7 +125,8 @@ IMPORTANT: Only perform the specific actions and corrections specified in the us
       success: true,
       proposalsCreated: 1,
       message: `Generated draft with ${countWords(draftContent)} words`,
-      draftContent
+      draftContent,
+      abort
     }
   } catch (error) {
     return {

@@ -128,6 +128,7 @@ export async function makeCompletion(options) {
 
 /**
  * Make a streaming completion request via backend proxy
+ * @returns {Promise<Function>} abort - Call to cancel the stream and cleanup resources
  */
 export async function makeStreamingCompletion(options, onChunk) {
   const {
@@ -148,6 +149,27 @@ export async function makeStreamingCompletion(options, onChunk) {
     { role: 'user', content: userPrompt }
   ]
 
+  // Create AbortController for cancellation
+  const abortController = new AbortController()
+  let reader = null
+  let isAborted = false
+
+  // Abort function to return to caller
+  const abort = () => {
+    console.log('[AI Service] Aborting streaming request...')
+    isAborted = true
+
+    // Cancel reader if it exists
+    if (reader) {
+      reader.cancel().catch(err => {
+        console.warn('[AI Service] Error canceling reader:', err)
+      })
+    }
+
+    // Abort fetch
+    abortController.abort()
+  }
+
   try {
     console.log('[AI Service] Making streaming completion request...', { model, temperature, maxTokens })
 
@@ -162,7 +184,8 @@ export async function makeStreamingCompletion(options, onChunk) {
         messages,
         temperature,
         max_tokens: maxTokens
-      })
+      }),
+      signal: abortController.signal
     })
 
     console.log('[AI Service] Streaming response status:', response.status)
@@ -181,36 +204,68 @@ export async function makeStreamingCompletion(options, onChunk) {
       throw new Error(errorMessage)
     }
 
-    const reader = response.body.getReader()
+    reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    try {
+      while (true) {
+        // Check if aborted before reading
+        if (isAborted) {
+          console.log('[AI Service] Stream aborted by caller')
+          break
+        }
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
+        const { done, value } = await reader.read()
+        if (done) break
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6)
-          if (data === '[DONE]') continue
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
 
-          try {
-            const parsed = JSON.parse(data)
-            const content = parsed.choices[0]?.delta?.content
-            if (content) {
-              onChunk(content)
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+
+            try {
+              const parsed = JSON.parse(data)
+              const content = parsed.choices[0]?.delta?.content
+              if (content) {
+                // Wrap onChunk in try-catch to prevent callback errors from leaking reader
+                try {
+                  onChunk(content)
+                } catch (callbackError) {
+                  console.error('[AI Service] Error in onChunk callback:', callbackError)
+                  // Continue processing - don't let callback errors break the stream
+                }
+              }
+            } catch (error) {
+              console.error('[AI Service] Failed to parse stream chunk:', data)
             }
-          } catch (error) {
-            console.error('[AI Service] Failed to parse stream chunk:', data)
           }
         }
       }
+    } finally {
+      // CRITICAL: Always cancel reader in finally block to prevent resource leaks
+      if (reader) {
+        try {
+          await reader.cancel()
+          console.log('[AI Service] Reader closed successfully')
+        } catch (err) {
+          console.warn('[AI Service] Error closing reader:', err)
+        }
+      }
     }
+
+    return abort
   } catch (error) {
+    // Handle abort gracefully - don't throw on user-initiated abort
+    if (error.name === 'AbortError') {
+      console.log('[AI Service] Streaming request aborted')
+      return abort
+    }
+
     console.error('[AI Service] Streaming Error:', error)
     throw error
   }
