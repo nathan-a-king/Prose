@@ -611,7 +611,10 @@ function HomePage() {
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 min-w-[80px]">
             {saveStatus === 'saving' && (
               <>
-                <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                <div
+                  className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"
+                  style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                ></div>
                 <span>Saving...</span>
               </>
             )}
@@ -628,7 +631,10 @@ function HomePage() {
           {/* Agent execution indicator */}
           {isExecuting && (
             <div className="flex items-center gap-2 text-sm">
-              <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+              <div
+                className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"
+                style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+              ></div>
               <span className="text-blue-600 dark:text-blue-400 font-medium">
                 {executionProgress?.agentId ? `Running ${executionProgress.agentId.replace('-agent', '')}...` : 'Running agent...'}
               </span>
@@ -780,7 +786,10 @@ function HomePage() {
           <div className="overflow-y-auto overflow-x-hidden h-full pb-20">
             {loadingDocuments ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <div className="w-6 h-6 border border-gray-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <div
+                  className="w-6 h-6 border border-gray-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"
+                  style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                ></div>
                 <p>Loading files...</p>
               </div>
             ) : recentFiles.length === 0 ? (
@@ -901,7 +910,10 @@ function HomePage() {
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               {isExecuting && (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <div
+                  className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                  style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                ></div>
               )}
               {isExecuting ? 'Running...' : 'Execute Agent'}
             </button>
