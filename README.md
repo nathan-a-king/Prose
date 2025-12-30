@@ -2,6 +2,9 @@
    <img src="public/images/prose-logo-small.png" alt="Prose Logo" style="display: inline-block; width: 150px; height: auto;">
 </div>
 <br>
+
+[![Test Suite](https://github.com/nathan-a-king/Prose/actions/workflows/test.yml/badge.svg)](https://github.com/nathan-a-king/Prose/actions/workflows/test.yml)
+
 A minimalist Markdown editor designed for focused writing with AI-powered assistance and real-time preview capabilities.
 
 I live in Markdown. Every blog post, every note, every README, every chapter of my novel—it all starts as plain text with simple formatting marks. After years of this workflow, I've developed strong opinions about how a Markdown editor should work. Apparently, *very* strong opinions.
