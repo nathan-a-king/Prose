@@ -75,14 +75,17 @@ class PromptionsService {
    * @param {string} agentId - Agent identifier
    * @param {DocumentState} documentState - Current document state
    * @param {Function} onProgress - Callback for progressive updates
-   * @returns {Promise<BasicOptions>} Final generated options
+   * @returns {Promise<{options: BasicOptions, abort: Function|null}>} Final generated options and abort function
    */
   async getOptionsForAgentStreaming(agentId, documentState, onProgress) {
     const agent = getAgent(agentId)
 
     if (!agent) {
       console.error(`[PromptionsService] Agent not found: ${agentId}`)
-      return this.basicOptionSet.emptyOptions()
+      return {
+        options: this.basicOptionSet.emptyOptions(),
+        abort: null
+      }
     }
 
     try {

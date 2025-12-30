@@ -348,12 +348,10 @@ function HomePage() {
   // Cleanup: abort any streaming requests when component unmounts
   useEffect(() => {
     return () => {
-      if (isExecuting) {
-        console.log('[HomePage] Unmounting with active execution, aborting streams...')
-        cancelExecution()
-      }
+      console.log('[HomePage] Unmounting, ensuring any active execution is cancelled...')
+      cancelExecution()
     }
-  }, [isExecuting, cancelExecution])
+  }, [cancelExecution])
 
 
   const deleteDocument = async (docId, e) => {

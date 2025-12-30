@@ -209,6 +209,12 @@ export class Orchestrator {
 
       return execution
     } catch (error) {
+      // Abort streaming request if active
+      if (this.currentAbort) {
+        console.log('[Orchestrator] Aborting stream due to pipeline error')
+        this.currentAbort()
+      }
+
       execution.fail(error.message)
       this.executionHistory.push(execution)
       this.currentExecution = null
@@ -221,6 +227,13 @@ export class Orchestrator {
    * Execute a single agent
    */
   async executeAgent(agentId, documentState, options = {}) {
+    // Abort previous agent's stream before starting new one
+    if (this.currentAbort) {
+      console.log('[Orchestrator] Aborting previous agent stream before starting new agent')
+      this.currentAbort()
+      this.currentAbort = null
+    }
+
     const agent = getAgent(agentId)
     if (!agent) {
       throw new Error(`Agent ${agentId} not found`)

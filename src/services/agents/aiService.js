@@ -128,7 +128,7 @@ export async function makeCompletion(options) {
 
 /**
  * Make a streaming completion request via backend proxy
- * @returns {Function} abort - Call to cancel the stream and cleanup resources
+ * @returns {Promise<Function>} abort - Call to cancel the stream and cleanup resources
  */
 export async function makeStreamingCompletion(options, onChunk) {
   const {
