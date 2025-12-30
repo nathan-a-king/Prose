@@ -163,7 +163,10 @@ export default function AgentPanel({ onClose, onAgentSelected }) {
         <div className="flex-none p-4 border-t border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-5 h-5 border-2 border-gray-900 dark:border-gray-100 border-t-transparent rounded-full animate-spin"></div>
+              <div
+                className="w-5 h-5 border-2 border-gray-900 dark:border-gray-100 border-t-transparent rounded-full animate-spin"
+                style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+              ></div>
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   {executionProgress?.type === 'pipeline' ? 'Running Pipeline...' : 'Running Agent...'}
