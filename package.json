@@ -9,6 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "electron": "electron .",
     "electron:dev": "NODE_ENV=development electron .",
     "app": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run electron:dev\"",
@@ -32,14 +36,19 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.1",
     "electron": "^38.0.0",
     "electron-builder": "^26.0.12",
+    "happy-dom": "^20.0.11",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "vite": "^6.0.6",
+    "vitest": "^4.0.16",
     "wait-on": "^9.0.3"
   },
   "build": {
