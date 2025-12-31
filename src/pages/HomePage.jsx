@@ -28,6 +28,7 @@ function sortRecentFiles(files) {
 }
 
 // Applies file limit, preserving pinned files and removing oldest unpinned files
+// Note: If pinned files exceed maxFiles, all pinned files are kept (user intent)
 function limitRecentFiles(files, maxFiles) {
   if (files.length <= maxFiles) {
     return files
@@ -36,6 +37,9 @@ function limitRecentFiles(files, maxFiles) {
   const pinnedFiles = files.filter(f => f.isPinned)
   const unpinnedFiles = files.filter(f => !f.isPinned)
   const remainingSlots = maxFiles - pinnedFiles.length
+  
+  // If pinned files exceed limit, keep all pinned files
+  // Otherwise, keep all pinned files and fill remaining slots with unpinned files
   return [...pinnedFiles, ...unpinnedFiles.slice(0, Math.max(0, remainingSlots))]
 }
 
