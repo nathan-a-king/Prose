@@ -774,6 +774,7 @@ function HomePage() {
                                 : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100'
                             }`}
                             title={file.isPinned ? 'Unpin file' : 'Pin file'}
+                            aria-label={file.isPinned ? 'Unpin file' : 'Pin file'}
                           >
                             <svg className="w-4 h-4" fill={file.isPinned ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
