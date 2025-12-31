@@ -758,9 +758,17 @@ function HomePage() {
                       </div>
                     )}
                     <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => openRecentFile(file.path)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          openRecentFile(file.path)
+                        }
+                      }}
                       className={`p-4 border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer group transition-colors ${
-                        currentFilePath === file.path ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''
+                        currentFilePath === file.path ? 'bg-gray-100 dark:bg-neutral-800 border-gray-300 dark:border-neutral-600' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between">
