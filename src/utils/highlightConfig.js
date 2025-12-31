@@ -1,34 +1,11 @@
 /**
- * Custom highlight.js configuration with only common languages
- * Reduces bundle size from ~500 kB (all languages) to ~20 kB (10 languages)
+ * Deprecated: this file is intentionally left empty.
+ *
+ * It previously contained a custom highlight.js configuration intended to
+ * limit supported languages for bundle-size optimization. That approach was
+ * abandoned due to rehype-highlight API incompatibility, and this module is
+ * no longer used anywhere in the codebase.
+ *
+ * The configuration and exports were removed to avoid confusion and to keep
+ * the codebase clean. This file can be safely deleted when convenient.
  */
-
-import hljs from 'highlight.js/lib/core'
-
-// Import only common programming languages
-import javascript from 'highlight.js/lib/languages/javascript'
-import typescript from 'highlight.js/lib/languages/typescript'
-import python from 'highlight.js/lib/languages/python'
-import java from 'highlight.js/lib/languages/java'
-import cpp from 'highlight.js/lib/languages/cpp'
-import bash from 'highlight.js/lib/languages/bash'
-import json from 'highlight.js/lib/languages/json'
-import markdown from 'highlight.js/lib/languages/markdown'
-import xml from 'highlight.js/lib/languages/xml'
-import css from 'highlight.js/lib/languages/css'
-
-// Register languages
-hljs.registerLanguage('javascript', javascript)
-hljs.registerLanguage('typescript', typescript)
-hljs.registerLanguage('python', python)
-hljs.registerLanguage('java', java)
-hljs.registerLanguage('cpp', cpp)
-hljs.registerLanguage('bash', bash)
-hljs.registerLanguage('shell', bash) // alias
-hljs.registerLanguage('json', json)
-hljs.registerLanguage('markdown', markdown)
-hljs.registerLanguage('xml', xml)
-hljs.registerLanguage('html', xml) // alias
-hljs.registerLanguage('css', css)
-
-export default hljs
