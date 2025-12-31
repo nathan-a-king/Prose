@@ -802,6 +802,7 @@ function HomePage() {
                                 : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100'
                             }`}
                             title={file.isPinned ? 'Unpin file' : 'Pin file'}
+                            aria-label={file.isPinned ? 'Unpin file' : 'Pin file'}
                           >
                             <svg className="w-4 h-4" fill={file.isPinned ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -833,6 +834,7 @@ function HomePage() {
                           }}
                           className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                           title="Remove from recent"
+                          aria-label="Remove from recent"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
