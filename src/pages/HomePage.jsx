@@ -208,7 +208,7 @@ function HomePage() {
       setSaveStatus('')
       // Could show error notification here
     }
-  }, [text, currentFilePath, currentDocId, documents])
+  }, [text, currentFilePath, currentDocId, documents, setDocuments, setCurrentDocId])
 
   // Auto-save effect
   useEffect(() => {
