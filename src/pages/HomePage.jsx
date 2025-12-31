@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, lazy, Suspense, Fragment } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAgents } from '../contexts/AgentContext'
 import { documentApi } from '../services/documentApi'
@@ -16,6 +16,15 @@ const SettingsPanel = lazy(() => import('../components/settings/SettingsPanel'))
 function preprocessMarkdown(text) {
   // Only add spacing for actual empty lines (3 or more consecutive newlines)
   return text.replace(/\n\s*\n\s*\n/g, '\n\n&nbsp;\n\n')
+}
+
+// Sorts recent files: pinned first (by recency), then unpinned (by recency)
+function sortRecentFiles(files) {
+  const pinned = files.filter(f => f.isPinned)
+    .sort((a, b) => new Date(b.lastOpened) - new Date(a.lastOpened))
+  const unpinned = files.filter(f => !f.isPinned)
+    .sort((a, b) => new Date(b.lastOpened) - new Date(a.lastOpened))
+  return [...pinned, ...unpinned]
 }
 
 function HomePage() {
@@ -40,9 +49,6 @@ function HomePage() {
   const [recentFiles, setRecentFiles] = useState([])
   const [editingDocId, setEditingDocId] = useState(null)
   const [editingTitle, setEditingTitle] = useState('')
-  const [draggedDoc, setDraggedDoc] = useState(null)
-  const [dragOverDocId, setDragOverDocId] = useState(null)
-  const [dropPosition, setDropPosition] = useState('before') // 'before' or 'after'
 
   const handlePromptionsChange = useCallback((promptions) => {
     setCurrentPromptions(promptions)
@@ -88,7 +94,13 @@ function HomePage() {
     const stored = localStorage.getItem('prose_recent_files')
     if (stored) {
       try {
-        setRecentFiles(JSON.parse(stored))
+        const parsed = JSON.parse(stored)
+        // Migration: add isPinned property to existing files
+        const migrated = parsed.map(file => ({
+          ...file,
+          isPinned: file.isPinned ?? false
+        }))
+        setRecentFiles(migrated)
       } catch (e) {
         console.error('Failed to parse recent files:', e)
       }
@@ -102,19 +114,28 @@ function HomePage() {
     const preview = content.substring(0, 100).replace(/\n/g, ' ') + (content.length > 100 ? '...' : '')
 
     setRecentFiles(prev => {
+      // Find existing file to preserve pin state
+      const existing = prev.find(f => f.path === filePath)
+      const isPinned = existing?.isPinned ?? false
+
       // Remove if already exists
       const filtered = prev.filter(f => f.path !== filePath)
-      // Add to front
+
+      // Add to list with preserved/default pin state
       const updated = [{
         path: filePath,
         name: fileName,
         preview,
-        lastOpened: new Date().toISOString()
+        lastOpened: new Date().toISOString(),
+        isPinned
       }, ...filtered].slice(0, 15) // Keep last 15 files
 
+      // Sort: pinned first, then by recency
+      const sorted = sortRecentFiles(updated)
+
       // Save to localStorage
-      localStorage.setItem('prose_recent_files', JSON.stringify(updated))
-      return updated
+      localStorage.setItem('prose_recent_files', JSON.stringify(sorted))
+      return sorted
     })
   }, [])
 
@@ -307,6 +328,23 @@ function HomePage() {
     }
   }, [addToRecentFiles])
 
+  // Toggle pin state for a recent file
+  const togglePin = useCallback((filePath, e) => {
+    e.stopPropagation() // Prevent opening the file
+
+    setRecentFiles(prev => {
+      const updated = prev.map(file =>
+        file.path === filePath
+          ? { ...file, isPinned: !file.isPinned }
+          : file
+      )
+
+      const sorted = sortRecentFiles(updated)
+      localStorage.setItem('prose_recent_files', JSON.stringify(sorted))
+      return sorted
+    })
+  }, [])
+
   // Save file as (show save dialog)
   const saveFileAs = useCallback(async () => {
     if (!fileSystemApi.isAvailable()) {
@@ -402,106 +440,6 @@ function HomePage() {
   const cancelRename = () => {
     setEditingDocId(null)
     setEditingTitle('')
-  }
-
-  // Drag and Drop handlers
-  const handleDragStart = (e, doc) => {
-    setDraggedDoc(doc)
-    e.dataTransfer.effectAllowed = 'move'
-    // Add dragging class after a slight delay to prevent immediate visual feedback
-    setTimeout(() => {
-      e.target.classList.add('opacity-50')
-    }, 0)
-  }
-
-  const handleDragEnd = (e) => {
-    e.target.classList.remove('opacity-50')
-    setDraggedDoc(null)
-    setDragOverDocId(null)
-  }
-
-  const handleDragOver = (e, doc) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    
-    // Only update if we're actually over a different document
-    if (draggedDoc && draggedDoc.id !== doc.id) {
-      const draggedIndex = documents.findIndex(d => d.id === draggedDoc.id)
-      const targetIndex = documents.findIndex(d => d.id === doc.id)
-      
-      // Determine if we're dragging up or down
-      if (draggedIndex < targetIndex) {
-        // Dragging down - show indicator below the target
-        setDropPosition('after')
-      } else {
-        // Dragging up - show indicator above the target
-        setDropPosition('before')
-      }
-      
-      setDragOverDocId(doc.id)
-    }
-  }
-
-  const handleDragLeave = (e) => {
-    // Only reset if we're leaving the drop zone entirely
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      setDragOverDocId(null)
-    }
-  }
-
-  const handleDrop = async (e, targetDoc) => {
-    e.preventDefault()
-    
-    if (!draggedDoc || draggedDoc.id === targetDoc.id) {
-      setDragOverDocId(null)
-      return
-    }
-
-    // Find indices
-    const draggedIndex = documents.findIndex(doc => doc.id === draggedDoc.id)
-    const targetIndex = documents.findIndex(doc => doc.id === targetDoc.id)
-
-    if (draggedIndex === -1 || targetIndex === -1) {
-      setDragOverDocId(null)
-      return
-    }
-
-    // Create new array with reordered documents
-    const newDocuments = [...documents]
-    const [removed] = newDocuments.splice(draggedIndex, 1)
-    
-    // Adjust insertion index based on drop position
-    let insertIndex = targetIndex
-    if (dropPosition === 'after') {
-      // If dropping after, we need to adjust the index
-      insertIndex = draggedIndex < targetIndex ? targetIndex : targetIndex + 1
-    } else {
-      // If dropping before
-      insertIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex
-    }
-    
-    newDocuments.splice(insertIndex, 0, removed)
-
-    // Update state immediately for responsive UI
-    setDocuments(newDocuments)
-    setDragOverDocId(null)
-
-    // Persist the new order to the backend
-    try {
-      // Create array of document orders with their new positions
-      const documentOrders = newDocuments.map((doc, index) => ({
-        id: doc.id,
-        order: index
-      }))
-      
-      // Call API to update order in database
-      await documentApi.updateOrder(documentOrders)
-    } catch (error) {
-      console.error('Failed to save document order:', error)
-      // Revert the order on error
-      setDocuments(documents)
-      // Optionally show an error notification to the user
-    }
   }
 
   // Formatting helper functions
@@ -804,46 +742,78 @@ function HomePage() {
                 <p className="text-xs">Press Cmd+O to open a file</p>
               </div>
             ) : (
-              recentFiles.map((file) => (
-              <div
-                key={file.path}
-                onClick={() => openRecentFile(file.path)}
-                className={`p-4 border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer group transition-colors ${
-                  currentFilePath === file.path ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-2 flex-1 min-w-0">
-                    <svg className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{file.path}</p>
-                      {file.preview && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{file.preview}</p>
-                      )}
+              recentFiles.map((file, index) => {
+                // Determine if we need a separator
+                const prevFile = index > 0 ? recentFiles[index - 1] : null
+                const showSeparator = prevFile?.isPinned && !file.isPinned
+
+                return (
+                  <Fragment key={file.path}>
+                    {showSeparator && (
+                      <div className="border-t border-gray-200 dark:border-neutral-600 my-2">
+                        <div className="text-xs text-gray-400 dark:text-gray-500 px-4 py-1 uppercase tracking-wide">
+                          Recent
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      onClick={() => openRecentFile(file.path)}
+                      className={`p-4 border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer group transition-colors ${
+                        currentFilePath === file.path ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          {/* Pin button */}
+                          <button
+                            onClick={(e) => togglePin(file.path, e)}
+                            className={`p-1 rounded transition-all flex-shrink-0 ${
+                              file.isPinned
+                                ? 'text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300'
+                                : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100'
+                            }`}
+                            title={file.isPinned ? 'Unpin file' : 'Pin file'}
+                          >
+                            <svg className="w-4 h-4" fill={file.isPinned ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                            </svg>
+                          </button>
+
+                          <svg className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+
+                          <div className="flex-1 min-w-0 overflow-hidden">
+                            <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{file.path}</p>
+                            {file.preview && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{file.preview}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Remove button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setRecentFiles(prev => {
+                              const updated = prev.filter(f => f.path !== file.path)
+                              localStorage.setItem('prose_recent_files', JSON.stringify(updated))
+                              return updated
+                            })
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                          title="Remove from recent"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setRecentFiles(prev => {
-                        const updated = prev.filter(f => f.path !== file.path)
-                        localStorage.setItem('prose_recent_files', JSON.stringify(updated))
-                        return updated
-                      })
-                    }}
-                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                    title="Remove from recent"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))
+                  </Fragment>
+                )
+              })
             )}
           </div>
         </div>
