@@ -27,6 +27,22 @@ function sortRecentFiles(files) {
   return [...pinned, ...unpinned]
 }
 
+// Applies file limit, preserving pinned files and removing oldest unpinned files
+// Note: If pinned files exceed maxFiles, all pinned files are kept (user intent)
+function limitRecentFiles(files, maxFiles) {
+  if (files.length <= maxFiles) {
+    return files
+  }
+  
+  const pinnedFiles = files.filter(f => f.isPinned)
+  const unpinnedFiles = files.filter(f => !f.isPinned)
+  const remainingSlots = maxFiles - pinnedFiles.length
+  
+  // If pinned files exceed limit, keep all pinned files
+  // Otherwise, keep all pinned files and fill remaining slots with unpinned files
+  return [...pinnedFiles, ...unpinnedFiles.slice(0, Math.max(0, remainingSlots))]
+}
+
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
   const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals, cancelExecution } = useAgents()
@@ -129,14 +145,17 @@ function HomePage() {
         preview,
         lastOpened: new Date().toISOString(),
         isPinned
-      }, ...filtered].slice(0, 15) // Keep last 15 files
+      }, ...filtered]
 
-      // Sort: pinned first, then by recency
+      // Sort first: pinned first, then by recency
       const sorted = sortRecentFiles(updated)
 
+      // Apply 15-file limit, removing unpinned files first if needed
+      const limited = limitRecentFiles(sorted, 15)
+
       // Save to localStorage
-      localStorage.setItem('prose_recent_files', JSON.stringify(sorted))
-      return sorted
+      localStorage.setItem('prose_recent_files', JSON.stringify(limited))
+      return limited
     })
   }, [])
 
@@ -341,8 +360,9 @@ function HomePage() {
       )
 
       const sorted = sortRecentFiles(updated)
-      localStorage.setItem('prose_recent_files', JSON.stringify(sorted))
-      return sorted
+      const limited = limitRecentFiles(sorted, 15)
+      localStorage.setItem('prose_recent_files', JSON.stringify(limited))
+      return limited
     })
   }, [])
 
