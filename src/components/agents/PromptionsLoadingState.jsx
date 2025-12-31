@@ -7,8 +7,7 @@ export default function PromptionsLoadingState() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 mb-2">
         <div
-          className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"
-          style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+          className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin-gpu"
         ></div>
         <p className="text-sm text-gray-600 dark:text-gray-400">Generating options...</p>
       </div>

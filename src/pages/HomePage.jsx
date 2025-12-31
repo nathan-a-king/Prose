@@ -620,8 +620,7 @@ function HomePage() {
             {saveStatus === 'saving' && (
               <>
                 <div
-                  className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"
-                  style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                  className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin-gpu"
                 ></div>
                 <span>Saving...</span>
               </>
@@ -640,8 +639,7 @@ function HomePage() {
           {isExecuting && (
             <div className="flex items-center gap-2 text-sm">
               <div
-                className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"
-                style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin-gpu"
               ></div>
               <span className="text-blue-600 dark:text-blue-400 font-medium">
                 {executionProgress?.agentId ? `Running ${executionProgress.agentId.replace('-agent', '')}...` : 'Running agent...'}
@@ -795,8 +793,7 @@ function HomePage() {
             {loadingDocuments ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                 <div
-                  className="w-6 h-6 border border-gray-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"
-                  style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                  className="w-6 h-6 border border-gray-400 border-t-transparent rounded-full animate-spin-gpu mx-auto mb-2"
                 ></div>
                 <p>Loading files...</p>
               </div>
@@ -919,8 +916,7 @@ function HomePage() {
             >
               {isExecuting && (
                 <div
-                  className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
-                  style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                  className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin-gpu"
                 ></div>
               )}
               {isExecuting ? 'Running...' : 'Execute Agent'}
