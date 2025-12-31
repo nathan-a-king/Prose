@@ -100,6 +100,7 @@ function HomePage() {
           ...file,
           isPinned: file.isPinned ?? false
         }))
+        localStorage.setItem('prose_recent_files', JSON.stringify(migrated))
         setRecentFiles(migrated)
       } catch (e) {
         console.error('Failed to parse recent files:', e)
