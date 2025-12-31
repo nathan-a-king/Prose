@@ -129,14 +129,24 @@ function HomePage() {
         preview,
         lastOpened: new Date().toISOString(),
         isPinned
-      }, ...filtered].slice(0, 15) // Keep last 15 files
+      }, ...filtered]
 
-      // Sort: pinned first, then by recency
+      // Sort first: pinned first, then by recency
       const sorted = sortRecentFiles(updated)
 
+      // Apply 15-file limit, removing unpinned files first if needed
+      const limited = sorted.length > 15 
+        ? (() => {
+            const pinnedFiles = sorted.filter(f => f.isPinned)
+            const unpinnedFiles = sorted.filter(f => !f.isPinned)
+            const remainingSlots = 15 - pinnedFiles.length
+            return [...pinnedFiles, ...unpinnedFiles.slice(0, Math.max(0, remainingSlots))]
+          })()
+        : sorted
+
       // Save to localStorage
-      localStorage.setItem('prose_recent_files', JSON.stringify(sorted))
-      return sorted
+      localStorage.setItem('prose_recent_files', JSON.stringify(limited))
+      return limited
     })
   }, [])
 
