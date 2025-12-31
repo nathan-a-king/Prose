@@ -13,14 +13,14 @@ export default function MarkdownPreview({ text, preprocessMarkdown }) {
             if (!children || (Array.isArray(children) && children.length === 0)) {
               return <div className="h-6" />;
             }
-            return <p className="mb-6 text-lg leading-relaxed text-gray-700 dark:text-gray-300 text-justify font-light font-sans preview-paragraph">{children}</p>;
+            return <p className="mb-6 text-lg leading-relaxed text-gray-700 dark:text-gray-300 text-justify font-light preview-paragraph">{children}</p>;
           },
-          h1: ({ children }) => <h1 className="text-4xl font-normal text-gray-900 dark:text-gray-100 mb-8 mt-2 text-center preview-h1">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-3xl font-normal text-gray-900 dark:text-gray-100 mb-6 mt-8 preview-h2">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-2xl font-normal text-gray-900 dark:text-gray-100 mb-4 mt-6 preview-h3">{children}</h3>,
-          h4: ({ children }) => <h4 className="text-xl font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h4">{children}</h4>,
-          h5: ({ children }) => <h5 className="text-lg font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h5">{children}</h5>,
-          h6: ({ children }) => <h6 className="text-base font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h6">{children}</h6>,
+          h1: ({ children }) => <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-8 mt-2 text-center preview-h1">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-3xl font-semibold text-gray-900 dark:text-gray-100 mb-6 mt-8 preview-h2">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-4 mt-6 preview-h3">{children}</h3>,
+          h4: ({ children }) => <h4 className="text-xl font-medium text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h4">{children}</h4>,
+          h5: ({ children }) => <h5 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h5">{children}</h5>,
+          h6: ({ children }) => <h6 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h6">{children}</h6>,
           ul: ({ children }) => <ul className="mb-6 list-disc pl-6 space-y-2 text-lg text-gray-700 dark:text-gray-300 font-light">{children}</ul>,
           ol: ({ children }) => <ol className="mb-6 list-decimal pl-6 space-y-2 text-lg text-gray-700 dark:text-gray-300 font-light">{children}</ol>,
           li: ({ children }) => <li className="leading-relaxed preview-li">{children}</li>,

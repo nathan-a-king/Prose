@@ -103,58 +103,7 @@ textarea:focus {
   font-feature-settings: "kern" 1, "liga" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
-}
-
-/* Explicit heading styles to ensure they render properly */
-.prose h1 {
-  font-size: 2.25rem !important;
-  font-weight: 700 !important;
-  line-height: 2.5rem !important;
-  margin-bottom: 2rem !important;
-  margin-top: 0 !important;
-  color: #111827 !important;
-}
-
-.dark .prose h1 {
-  color: #f9fafb !important;
-}
-
-.prose h2 {
-  font-size: 1.875rem !important;
-  font-weight: 600 !important;
-  line-height: 2.25rem !important;
-  margin-bottom: 1.5rem !important;
-  margin-top: 3rem !important;
-  color: #111827 !important;
-}
-
-.dark .prose h2 {
-  color: #f9fafb !important;
-}
-
-.prose h3 {
-  font-size: 1.5rem !important;
-  font-weight: 500 !important;
-  line-height: 2rem !important;
-  margin-bottom: 1rem !important;
-  margin-top: 2.5rem !important;
-  color: #111827 !important;
-}
-
-.dark .prose h3 {
-  color: #f9fafb !important;
-}
-
-.prose p {
-  font-size: 1rem !important;
-  line-height: 1.75rem !important;
-  margin-bottom: 1.5rem !important;
-  color: #374151 !important;
-}
-
-.dark .prose p {
-  color: #d1d5db !important;
+  font-family: 'Avenir', 'Avenir Next', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 /* Code block styling */
@@ -260,7 +209,6 @@ textarea:focus {
 
 .preview-paragraph {
   line-height: 1.8;
-  font-family: 'Avenir', 'Avenir Next', -apple-system, sans-serif;
 }
 
 .preview-h1 {
