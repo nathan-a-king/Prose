@@ -145,22 +145,26 @@ function HomePage() {
     }
   }, [text, currentDocId, currentFilePath, documents, initializeDocument, documentState])
 
+  // Keep textRef in sync with text state for comparison in sync effect
+  const textRef = useRef(text)
+  useEffect(() => {
+    textRef.current = text
+  }, [text])
+
   // Sync text with documentState when it changes from agent actions
   useEffect(() => {
     if (documentState && updateCounter > 0) {
       const stateContent = documentState.getContent()
       // Update text when proposals are approved (updateCounter changes)
       // Only update if content actually changed to avoid overwriting user edits
-      if (stateContent && stateContent !== text) {
+      // Use textRef.current to get latest value without triggering infinite loop
+      if (stateContent && stateContent !== textRef.current) {
         setText(stateContent)
       }
     }
-    // Intentionally NOT including 'text' in dependencies to avoid infinite loop
-    // This effect should only run when proposals are approved (updateCounter changes)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateCounter, documentState])
 
-  const saveDocument = async () => {
+  const saveDocument = useCallback(async () => {
     if (!text.trim()) return
 
     setSaveStatus('saving')
@@ -204,32 +208,26 @@ function HomePage() {
       setSaveStatus('')
       // Could show error notification here
     }
-  }
-
-  const autoSave = async () => {
-    if (text.trim()) {
-      await saveDocument()
-    }
-  }
+  }, [text, currentFilePath, currentDocId, documents])
 
   // Auto-save effect
   useEffect(() => {
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current)
     }
-    
+
     if (text.trim()) {
       autoSaveTimeout.current = setTimeout(() => {
-        autoSave()
+        saveDocument()
       }, 3000) // Auto-save after 3 seconds of inactivity
     }
-    
+
     return () => {
       if (autoSaveTimeout.current) {
         clearTimeout(autoSaveTimeout.current)
       }
     }
-  }, [text])
+  }, [text, saveDocument])
 
   // Auto-resize textarea
   useLayoutEffect(() => {
@@ -343,7 +341,7 @@ function HomePage() {
     })
 
     return cleanup
-  }, [newDocument, openFile, saveFileAs])
+  }, [newDocument, saveDocument, openFile, saveFileAs])
 
   // Cleanup: abort any streaming requests when component unmounts
   useEffect(() => {
