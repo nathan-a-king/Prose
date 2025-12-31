@@ -5,7 +5,7 @@
  * Focuses on getting words on page, not perfection.
  */
 
-import { makeStreamingCompletion } from '../services/agents/aiService'
+import { makeStreamingCompletion, makeCompletion } from '../services/agents/aiService'
 import {
   AGENT_STAGES,
   OPERATION_TYPES,
@@ -99,7 +99,6 @@ IMPORTANT: Only perform the specific actions and corrections specified in the us
       )
     } else {
       // Non-streaming mode
-      const { makeCompletion } = await import('../services/agents/aiService')
       draftContent = await makeCompletion({
         systemPrompt,
         userPrompt,

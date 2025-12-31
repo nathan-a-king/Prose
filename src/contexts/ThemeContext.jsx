@@ -20,6 +20,17 @@ export function ThemeProvider({ children }) {
     }
   }, [isDarkMode])
 
+  // Dynamically load highlight.js theme based on mode
+  useEffect(() => {
+    const loadHighlightTheme = async () => {
+      if (isDarkMode) {
+        await import('highlight.js/styles/atom-one-dark.css')
+      }
+      // Light theme is already imported in index.css, no need to import again
+    }
+    loadHighlightTheme()
+  }, [isDarkMode])
+
   const toggleTheme = () => setIsDarkMode(!isDarkMode)
 
   const resetToSystemPreference = () => {
