@@ -1,16 +1,16 @@
-import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, lazy, Suspense } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAgents } from '../contexts/AgentContext'
 import { documentApi } from '../services/documentApi'
 import { fileSystemApi, setupMenuListeners } from '../services/fileSystemApi'
-import AgentPanel from '../components/agents/AgentPanel'
-import ChangeProposalPanel from '../components/agents/ChangeProposalPanel'
-import PromptionsControlPanel from '../components/agents/PromptionsControlPanel'
-import SettingsPanel from '../components/settings/SettingsPanel'
 import SyntaxHighlighter from '../components/SyntaxHighlighter'
+
+// Lazy-loaded components for better code splitting
+const MarkdownPreview = lazy(() => import('../components/MarkdownPreview'))
+const AgentPanel = lazy(() => import('../components/agents/AgentPanel'))
+const ChangeProposalPanel = lazy(() => import('../components/agents/ChangeProposalPanel'))
+const PromptionsControlPanel = lazy(() => import('../components/agents/PromptionsControlPanel'))
+const SettingsPanel = lazy(() => import('../components/settings/SettingsPanel'))
 
 // Function to preprocess markdown to preserve blank lines
 function preprocessMarkdown(text) {
@@ -854,81 +854,99 @@ function HomePage() {
         <div className={`fixed top-24 left-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
           agentPanelOpen ? 'translate-x-0' : '-translate-x-[28rem]'
         }`}>
-          <AgentPanel
-            onClose={() => setAgentPanelOpen(false)}
-            onAgentSelected={handleAgentSelected}
-          />
+          {agentPanelOpen && (
+            <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading...</div>}>
+              <AgentPanel
+                onClose={() => setAgentPanelOpen(false)}
+                onAgentSelected={handleAgentSelected}
+              />
+            </Suspense>
+          )}
         </div>
 
         {/* Change Proposal Panel */}
         <div className={`fixed top-24 right-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
           proposalPanelOpen ? 'translate-x-0' : 'translate-x-[28rem]'
         }`}>
-          <ChangeProposalPanel
-            onClose={() => setProposalPanelOpen(false)}
-            onApplyChange={(newContent) => setText(newContent)}
-          />
+          {proposalPanelOpen && (
+            <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading...</div>}>
+              <ChangeProposalPanel
+                onClose={() => setProposalPanelOpen(false)}
+                onApplyChange={(newContent) => setText(newContent)}
+              />
+            </Suspense>
+          )}
         </div>
 
         {/* Promptions Control Panel */}
         <div className={`fixed bottom-8 left-1/2 transform -translate-x-1/2 w-[800px] max-w-[calc(100vw-4rem)] bg-white dark:bg-neutral-700 shadow-xl rounded-lg transition-transform duration-300 ease-in-out z-20 overflow-hidden ${
           steeringPanelOpen ? 'translate-y-0' : 'translate-y-[calc(100%+4rem)]'
         }`}>
-          <div className="p-4 border-b border-gray-200 dark:border-neutral-600 flex items-center justify-between">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              {selectedAgent ? `Configure ${selectedAgent.replace(/-/g, ' ')}` : 'Agent Options'}
-            </h2>
-            <button
-              onClick={() => setSteeringPanelOpen(false)}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded transition-colors"
-              title="Close options panel"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="p-4">
-            <PromptionsControlPanel
-              agentId={selectedAgent}
-              documentState={documentState}
-              onChange={handlePromptionsChange}
-            />
-          </div>
+          {steeringPanelOpen && (
+            <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading options...</div>}>
+              <>
+                <div className="p-4 border-b border-gray-200 dark:border-neutral-600 flex items-center justify-between">
+                  <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    {selectedAgent ? `Configure ${selectedAgent.replace(/-/g, ' ')}` : 'Agent Options'}
+                  </h2>
+                  <button
+                    onClick={() => setSteeringPanelOpen(false)}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded transition-colors"
+                    title="Close options panel"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-4">
+                  <PromptionsControlPanel
+                    agentId={selectedAgent}
+                    documentState={documentState}
+                    onChange={handlePromptionsChange}
+                  />
+                </div>
 
-          {/* Execute button */}
-          <div className="p-4 border-t border-gray-200 dark:border-neutral-600 flex justify-end gap-2">
-            <button
-              onClick={() => setSteeringPanelOpen(false)}
-              className="px-4 py-2 text-sm border border-gray-200 dark:border-neutral-500 rounded-md text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-neutral-600 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                if (selectedAgent && !isExecuting) {
-                  executeAgent(selectedAgent)
-                  setSteeringPanelOpen(false)
-                }
-              }}
-              disabled={!selectedAgent || isExecuting}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              {isExecuting && (
-                <div
-                  className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin-gpu"
-                ></div>
-              )}
-              {isExecuting ? 'Running...' : 'Execute Agent'}
-            </button>
-          </div>
+                {/* Execute button */}
+                <div className="p-4 border-t border-gray-200 dark:border-neutral-600 flex justify-end gap-2">
+                  <button
+                    onClick={() => setSteeringPanelOpen(false)}
+                    className="px-4 py-2 text-sm border border-gray-200 dark:border-neutral-500 rounded-md text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-neutral-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedAgent && !isExecuting) {
+                        executeAgent(selectedAgent)
+                        setSteeringPanelOpen(false)
+                      }
+                    }}
+                    disabled={!selectedAgent || isExecuting}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    {isExecuting && (
+                      <div
+                        className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin-gpu"
+                      ></div>
+                    )}
+                    {isExecuting ? 'Running...' : 'Execute Agent'}
+                  </button>
+                </div>
+              </>
+            </Suspense>
+          )}
         </div>
 
         {/* Settings Panel */}
-        <SettingsPanel
-          isOpen={settingsPanelOpen}
-          onClose={() => setSettingsPanelOpen(false)}
-        />
+        {settingsPanelOpen && (
+          <Suspense fallback={null}>
+            <SettingsPanel
+              isOpen={settingsPanelOpen}
+              onClose={() => setSettingsPanelOpen(false)}
+            />
+          </Suspense>
+        )}
 
         {/* Floating Formatting Toolbar */}
         {viewMode === 'edit' && (
@@ -1128,64 +1146,13 @@ function HomePage() {
 
             {viewMode === 'preview' && (
             <div className="p-16 preview-container">
-              <div className="prose prose-lg dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
-                  components={{
-                    p: ({ children }) => {
-                      if (!children || (Array.isArray(children) && children.length === 0)) {
-                        return <div className="h-6" />;
-                      }
-                      return <p className="mb-6 text-lg leading-relaxed text-gray-700 dark:text-gray-300 text-justify font-light font-sans preview-paragraph">{children}</p>;
-                    },
-                    h1: ({ children }) => <h1 className="text-4xl font-normal text-gray-900 dark:text-gray-100 mb-8 mt-2 text-center preview-h1">{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-3xl font-normal text-gray-900 dark:text-gray-100 mb-6 mt-8 preview-h2">{children}</h2>,
-                    h3: ({ children }) => <h3 className="text-2xl font-normal text-gray-900 dark:text-gray-100 mb-4 mt-6 preview-h3">{children}</h3>,
-                    h4: ({ children }) => <h4 className="text-xl font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h4">{children}</h4>,
-                    h5: ({ children }) => <h5 className="text-lg font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h5">{children}</h5>,
-                    h6: ({ children }) => <h6 className="text-base font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h6">{children}</h6>,
-                    ul: ({ children }) => <ul className="mb-6 list-disc pl-6 space-y-2 text-lg text-gray-700 dark:text-gray-300 font-light">{children}</ul>,
-                    ol: ({ children }) => <ol className="mb-6 list-decimal pl-6 space-y-2 text-lg text-gray-700 dark:text-gray-300 font-light">{children}</ol>,
-                    li: ({ children }) => <li className="leading-relaxed preview-li">{children}</li>,
-                    blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 dark:border-neutral-600 pl-6 my-6 italic text-gray-700 dark:text-gray-300">{children}</blockquote>,
-                    code: ({ inline, children }) => {
-                      if (inline) {
-                        return <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-neutral-700 text-sm font-mono rounded text-gray-800 dark:text-gray-200">{children}</code>;
-                      }
-                      return <code>{children}</code>;
-                    },
-                    pre: ({ children }) => (
-                      <pre className="mb-6 p-4 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-lg overflow-x-auto">
-                        <code className="text-gray-800 dark:text-gray-200">{children}</code>
-                      </pre>
-                    ),
-                    strong: ({ children }) => <strong className="font-medium text-gray-900 dark:text-gray-100">{children}</strong>,
-                    a: ({ href, children }) => {
-                      const handleClick = (e) => {
-                        // In Electron, the main process will handle external links
-                        // via the will-navigate event, so we just need to handle
-                        // the fallback for web browsers
-                        if (!href?.startsWith('http://localhost')) {
-                          e.preventDefault();
-                          window.open(href, '_blank', 'noopener,noreferrer');
-                        }
-                      };
-                      return (
-                        <a
-                          href={href}
-                          onClick={handleClick}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline decoration-1 underline-offset-2 cursor-pointer"
-                        >
-                          {children}
-                        </a>
-                      );
-                    }
-                  }}
-                >
-                  {preprocessMarkdown(text) || '# Start writing some markdown!\n\nYour preview will appear here.'}
-                </ReactMarkdown>
-              </div>
+              <Suspense fallback={
+                <div className="flex items-center justify-center py-16">
+                  <div className="text-gray-500 dark:text-gray-400">Loading preview...</div>
+                </div>
+              }>
+                <MarkdownPreview text={text} preprocessMarkdown={preprocessMarkdown} />
+              </Suspense>
             </div>
             )}
         </div>
