@@ -20,8 +20,8 @@ app.setName('Prose');
 // Set about panel options for macOS
 app.setAboutPanelOptions({
   applicationName: 'Prose',
-  applicationVersion: '1.0.0',
-  version: '1.0.0',
+  applicationVersion: '1.5.0',
+  version: '1.5.0',
   copyright: '© 2025 Prose',
   credits: 'In loving memory of Philip King'
 });
