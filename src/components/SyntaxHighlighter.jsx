@@ -58,8 +58,11 @@ export default function SyntaxHighlighter({ text }) {
 
   // Convert HTML string to React elements
   const htmlToReact = (htmlString) => {
+    // Wrap in a span to preserve leading/trailing whitespace
+    // DOMParser strips leading/trailing whitespace when parsing bare text
+    const wrappedHtml = `<span>${htmlString}</span>`;
     const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlString, 'text/html');
+    const doc = parser.parseFromString(wrappedHtml, 'text/html');
 
     const convertNode = (node, index) => {
       if (node.nodeType === Node.TEXT_NODE) {

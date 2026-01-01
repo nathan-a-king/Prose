@@ -291,12 +291,20 @@ function HomePage() {
       requestAnimationFrame(() => {
         if (textareaRef.current) {
           const scrollTop = window.scrollY || document.documentElement.scrollTop
+          // Save cursor position before resize
+          const selectionStart = textareaRef.current.selectionStart
+          const selectionEnd = textareaRef.current.selectionEnd
 
           // Reset height to get correct scrollHeight
           textareaRef.current.style.height = 'auto'
           const scrollHeight = textareaRef.current.scrollHeight
           // Add a small buffer (2px) to prevent the minimal scrollbar issue
           textareaRef.current.style.height = (scrollHeight + 2) + 'px'
+
+          // Restore cursor position after resize, if textarea is still mounted
+          if (textareaRef.current) {
+            textareaRef.current.setSelectionRange(selectionStart, selectionEnd)
+          }
 
           // Maintain scroll position
           window.scrollTo({ top: scrollTop, behavior: 'instant' })
@@ -622,9 +630,9 @@ function HomePage() {
           <div className="flex items-center bg-gray-100 dark:bg-neutral-700 rounded-lg p-1">
             <button
               onClick={() => setViewMode('edit')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                viewMode === 'edit' 
-                  ? 'bg-white dark:bg-neutral-600 text-gray-900 dark:text-gray-100 shadow-sm' 
+              className={`px-4 py-1.5 text-sm font-normal rounded-md transition-colors ${
+                viewMode === 'edit'
+                  ? 'bg-white dark:bg-neutral-600 text-gray-900 dark:text-gray-100 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
               }`}
             >
@@ -632,9 +640,9 @@ function HomePage() {
             </button>
             <button
               onClick={() => setViewMode('preview')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                viewMode === 'preview' 
-                  ? 'bg-white dark:bg-neutral-600 text-gray-900 dark:text-gray-100 shadow-sm' 
+              className={`px-4 py-1.5 text-sm font-normal rounded-md transition-colors ${
+                viewMode === 'preview'
+                  ? 'bg-white dark:bg-neutral-600 text-gray-900 dark:text-gray-100 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
               }`}
             >
@@ -747,7 +755,7 @@ function HomePage() {
         }`}>
           <div className="p-6 border-b border-gray-200 dark:border-neutral-700">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Recent Files</h2>
+              <h2 className="text-base font-normal text-gray-900 dark:text-gray-100">Recent Files</h2>
               <button
                 onClick={openFile}
                 className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
@@ -899,7 +907,7 @@ function HomePage() {
             <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading options...</div>}>
               <>
                 <div className="p-4 border-b border-gray-200 dark:border-neutral-600 flex items-center justify-between">
-                  <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                  <h2 className="text-base font-normal text-gray-900 dark:text-gray-100">
                     {selectedAgent ? `Configure ${selectedAgent.replace(/-/g, ' ')}` : 'Agent Options'}
                   </h2>
                   <button
@@ -1126,7 +1134,7 @@ function HomePage() {
         {viewMode === 'edit' && (
           <div className="relative">
             {/* Syntax highlighting overlay - behind the textarea */}
-              <div className="absolute inset-0 p-12 text-lg font-light font-sans pointer-events-none overflow-hidden text-gray-900 dark:text-gray-100 syntax-highlight-overlay">
+              <div className="absolute inset-0 p-12 text-base font-light font-sans pointer-events-none overflow-hidden text-gray-700 dark:text-gray-300 syntax-highlight-overlay">
                 <SyntaxHighlighter text={text} />
               </div>
               {/* Actual textarea - transparent text but visible caret */}
@@ -1151,7 +1159,7 @@ function HomePage() {
                   }
                 }}
                 placeholder=""
-                className="relative w-full p-12 bg-transparent border-0 resize-none focus:outline-none text-transparent text-lg font-light font-sans markdown-editor-textarea caret-gray-900 dark:caret-gray-100"
+                className="relative w-full p-12 bg-transparent border-0 resize-none focus:outline-none text-transparent text-base font-light font-sans markdown-editor-textarea caret-gray-900 dark:caret-gray-100"
                 spellCheck="false"
               />
             </div>
