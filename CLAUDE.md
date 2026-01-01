@@ -29,14 +29,22 @@ This is a React 19 single-page application with the following architecture:
 ### Routing & Layout
 - Uses React Router v7 with client-side routing configured in `src/App.jsx`
 - Main layout wrapper at `src/components/layout/Layout.jsx` handles consistent page structure
-- Pages are in `src/pages/` directory (HomePage, AboutPage, ContactPage)
+- Main editor interface at `src/pages/HomePage.jsx`
+
+### Multi-Agent Editorial System
+- Specialized AI agents for different writing stages: brainstorm, draft, revision, editor, argument strengthener
+- Agent contracts defined in `src/agents/` directory
+- Agent orchestration and pipeline management in `src/services/agents/orchestrator.js`
+- Document state tracking with change proposals in `src/services/agents/documentState.js`
+- Agent UI components in `src/components/agents/` including AgentPanel, ChangeProposalPanel, and PromptionsControlPanel
+- AgentContext at `src/contexts/AgentContext.jsx` manages agent system state
 
 ### Styling & Theming
 - Tailwind CSS with custom configuration including:
   - Dark mode support via `class` strategy
   - Custom primary color palette (blue shades)
-  - Custom animations (fade-in, slide-up)
-  - Inter font for body text, JetBrains Mono for code
+  - Custom animations (fade-in, slide-up, spin-gpu)
+  - Avenir/Avenir Next font stack for body text, JetBrains Mono for code
 - Theme context at `src/contexts/ThemeContext.jsx` manages dark/light mode state
 
 ### Build & Deployment
@@ -45,7 +53,14 @@ This is a React 19 single-page application with the following architecture:
 - Build output configured for `build/` directory with manual chunking for optimization
 
 ### Component Organization
+- `src/agents/` - AI agent contracts and initialization
+- `src/components/agents/` - Agent UI components (panels, controls, promptions)
 - `src/components/layout/` - Layout components
+- `src/components/settings/` - Settings panel
 - `src/components/ui/` - Reusable UI components
-- `src/contexts/` - React contexts for global state
-- `src/pages/` - Page-level components for routes
+- `src/contexts/` - React contexts (AgentContext, ThemeContext)
+- `src/lib/promptions/` - Promptions configuration options
+- `src/pages/` - Page-level components (HomePage)
+- `src/services/agents/` - Agent services (registry, orchestrator, documentState, aiService)
+- `src/services/` - API clients (documentApi, fileSystemApi)
+- `src/test/` - Test infrastructure (factories, mocks, utilities)

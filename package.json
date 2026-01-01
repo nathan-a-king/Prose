@@ -1,7 +1,7 @@
 {
   "name": "prose-app",
   "productName": "Prose",
-  "version": "1.0.0",
+  "version": "1.5.0",
   "type": "module",
   "description": "A minimal markdown editor with AI-powered writing assistance and multi-agent editorial system",
   "author": "Nathan King <nathan@nathanaking.com>",

@@ -60,6 +60,7 @@ function HomePage() {
   const autoSaveTimeout = useRef(null)
   const textareaRef = useRef(null)
   const editorRef = useRef(null)
+  const saveDocumentRef = useRef(null)
   const [documents, setDocuments] = useState([])
   const [loadingDocuments, setLoadingDocuments] = useState(true)
   const [recentFiles, setRecentFiles] = useState([])
@@ -223,8 +224,13 @@ function HomePage() {
       const preview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
       let savedDoc
       if (currentDocId) {
-        // Update existing document
-        const existingDoc = documents.find(doc => doc.id === currentDocId)
+        // Update existing document - use functional form to access current documents
+        let existingDoc
+        setDocuments(docs => {
+          existingDoc = docs.find(doc => doc.id === currentDocId)
+          return docs // Don't update yet
+        })
+
         const shouldUpdateTitle = !existingDoc?.title_manually_set
         const title = shouldUpdateTitle
           ? (text.split('\n')[0].substring(0, 50) || 'Untitled Document')
@@ -249,7 +255,12 @@ function HomePage() {
       setSaveStatus('')
       // Could show error notification here
     }
-  }, [text, currentFilePath, currentDocId, documents, setDocuments, setCurrentDocId])
+  }, [text, currentFilePath, currentDocId])
+
+  // Keep ref updated with latest saveDocument
+  useEffect(() => {
+    saveDocumentRef.current = saveDocument
+  }, [saveDocument])
 
   // Auto-save effect
   useEffect(() => {
@@ -259,7 +270,10 @@ function HomePage() {
 
     if (text.trim()) {
       autoSaveTimeout.current = setTimeout(() => {
-        saveDocument()
+        // Use ref to call latest saveDocument without causing re-renders
+        if (saveDocumentRef.current) {
+          saveDocumentRef.current()
+        }
       }, 3000) // Auto-save after 3 seconds of inactivity
     }
 
@@ -268,7 +282,7 @@ function HomePage() {
         clearTimeout(autoSaveTimeout.current)
       }
     }
-  }, [text, saveDocument])
+  }, [text])
 
   // Auto-resize textarea
   useLayoutEffect(() => {
