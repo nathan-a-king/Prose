@@ -1132,7 +1132,7 @@ function HomePage() {
         {viewMode === 'edit' && (
           <div className="relative">
             {/* Syntax highlighting overlay - behind the textarea */}
-              <div className="absolute inset-0 p-12 text-base font-light font-sans pointer-events-none overflow-hidden text-gray-700 dark:text-gray-300 text-justify syntax-highlight-overlay">
+              <div className="absolute inset-0 p-12 text-base font-light font-sans pointer-events-none overflow-hidden text-gray-700 dark:text-gray-300 syntax-highlight-overlay">
                 <SyntaxHighlighter text={text} />
               </div>
               {/* Actual textarea - transparent text but visible caret */}
