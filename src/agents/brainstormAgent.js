@@ -181,9 +181,9 @@ function parseResponse(response, documentState) {
   const endPosition = content.length
 
   for (const idea of response.ideas) {
-    // Create a comment-type proposal for each idea
+    // Create an insert-type proposal for each idea (adds text to document)
     proposals.push({
-      type: CHANGE_TYPES.COMMENT,
+      type: CHANGE_TYPES.INSERT,
       location: { start: endPosition, end: endPosition },
       originalText: '',
       proposedText: `\n\n## ${idea.title}\n\n${idea.description}`,
