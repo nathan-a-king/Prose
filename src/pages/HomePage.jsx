@@ -1,16 +1,16 @@
-import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, lazy, Suspense, Fragment } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAgents } from '../contexts/AgentContext'
 import { documentApi } from '../services/documentApi'
 import { fileSystemApi, setupMenuListeners } from '../services/fileSystemApi'
-import AgentPanel from '../components/agents/AgentPanel'
-import ChangeProposalPanel from '../components/agents/ChangeProposalPanel'
-import PromptionsControlPanel from '../components/agents/PromptionsControlPanel'
-import SettingsPanel from '../components/settings/SettingsPanel'
 import SyntaxHighlighter from '../components/SyntaxHighlighter'
+
+// Lazy-loaded components for better code splitting
+const MarkdownPreview = lazy(() => import('../components/MarkdownPreview'))
+const AgentPanel = lazy(() => import('../components/agents/AgentPanel'))
+const ChangeProposalPanel = lazy(() => import('../components/agents/ChangeProposalPanel'))
+const PromptionsControlPanel = lazy(() => import('../components/agents/PromptionsControlPanel'))
+const SettingsPanel = lazy(() => import('../components/settings/SettingsPanel'))
 
 // Function to preprocess markdown to preserve blank lines
 function preprocessMarkdown(text) {
@@ -18,9 +18,34 @@ function preprocessMarkdown(text) {
   return text.replace(/\n\s*\n\s*\n/g, '\n\n&nbsp;\n\n')
 }
 
+// Sorts recent files: pinned first (by recency), then unpinned (by recency)
+function sortRecentFiles(files) {
+  const pinned = files.filter(f => f.isPinned)
+    .sort((a, b) => new Date(b.lastOpened) - new Date(a.lastOpened))
+  const unpinned = files.filter(f => !f.isPinned)
+    .sort((a, b) => new Date(b.lastOpened) - new Date(a.lastOpened))
+  return [...pinned, ...unpinned]
+}
+
+// Applies file limit, preserving pinned files and removing oldest unpinned files
+// Note: If pinned files exceed maxFiles, all pinned files are kept (user intent)
+function limitRecentFiles(files, maxFiles) {
+  if (files.length <= maxFiles) {
+    return files
+  }
+  
+  const pinnedFiles = files.filter(f => f.isPinned)
+  const unpinnedFiles = files.filter(f => !f.isPinned)
+  const remainingSlots = maxFiles - pinnedFiles.length
+  
+  // If pinned files exceed limit, keep all pinned files
+  // Otherwise, keep all pinned files and fill remaining slots with unpinned files
+  return [...pinnedFiles, ...unpinnedFiles.slice(0, Math.max(0, remainingSlots))]
+}
+
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, currentPromptions, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals } = useAgents()
+  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, selectedAgent, setCurrentPromptions, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals, cancelExecution } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
@@ -35,14 +60,12 @@ function HomePage() {
   const autoSaveTimeout = useRef(null)
   const textareaRef = useRef(null)
   const editorRef = useRef(null)
+  const saveDocumentRef = useRef(null)
   const [documents, setDocuments] = useState([])
   const [loadingDocuments, setLoadingDocuments] = useState(true)
   const [recentFiles, setRecentFiles] = useState([])
   const [editingDocId, setEditingDocId] = useState(null)
   const [editingTitle, setEditingTitle] = useState('')
-  const [draggedDoc, setDraggedDoc] = useState(null)
-  const [dragOverDocId, setDragOverDocId] = useState(null)
-  const [dropPosition, setDropPosition] = useState('before') // 'before' or 'after'
 
   const handlePromptionsChange = useCallback((promptions) => {
     setCurrentPromptions(promptions)
@@ -88,7 +111,14 @@ function HomePage() {
     const stored = localStorage.getItem('prose_recent_files')
     if (stored) {
       try {
-        setRecentFiles(JSON.parse(stored))
+        const parsed = JSON.parse(stored)
+        // Migration: add isPinned property to existing files
+        const migrated = parsed.map(file => ({
+          ...file,
+          isPinned: file.isPinned ?? false
+        }))
+        localStorage.setItem('prose_recent_files', JSON.stringify(migrated))
+        setRecentFiles(migrated)
       } catch (e) {
         console.error('Failed to parse recent files:', e)
       }
@@ -102,19 +132,31 @@ function HomePage() {
     const preview = content.substring(0, 100).replace(/\n/g, ' ') + (content.length > 100 ? '...' : '')
 
     setRecentFiles(prev => {
+      // Find existing file to preserve pin state
+      const existing = prev.find(f => f.path === filePath)
+      const isPinned = existing?.isPinned ?? false
+
       // Remove if already exists
       const filtered = prev.filter(f => f.path !== filePath)
-      // Add to front
+
+      // Add to list with preserved/default pin state
       const updated = [{
         path: filePath,
         name: fileName,
         preview,
-        lastOpened: new Date().toISOString()
-      }, ...filtered].slice(0, 15) // Keep last 15 files
+        lastOpened: new Date().toISOString(),
+        isPinned
+      }, ...filtered]
+
+      // Sort first: pinned first, then by recency
+      const sorted = sortRecentFiles(updated)
+
+      // Apply 15-file limit, removing unpinned files first if needed
+      const limited = limitRecentFiles(sorted, 15)
 
       // Save to localStorage
-      localStorage.setItem('prose_recent_files', JSON.stringify(updated))
-      return updated
+      localStorage.setItem('prose_recent_files', JSON.stringify(limited))
+      return limited
     })
   }, [])
 
@@ -145,22 +187,26 @@ function HomePage() {
     }
   }, [text, currentDocId, currentFilePath, documents, initializeDocument, documentState])
 
+  // Keep textRef in sync with text state for comparison in sync effect
+  const textRef = useRef(text)
+  useEffect(() => {
+    textRef.current = text
+  }, [text])
+
   // Sync text with documentState when it changes from agent actions
   useEffect(() => {
     if (documentState && updateCounter > 0) {
       const stateContent = documentState.getContent()
       // Update text when proposals are approved (updateCounter changes)
       // Only update if content actually changed to avoid overwriting user edits
-      if (stateContent && stateContent !== text) {
+      // Use textRef.current to get latest value without triggering infinite loop
+      if (stateContent && stateContent !== textRef.current) {
         setText(stateContent)
       }
     }
-    // Intentionally NOT including 'text' in dependencies to avoid infinite loop
-    // This effect should only run when proposals are approved (updateCounter changes)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateCounter, documentState])
 
-  const saveDocument = async () => {
+  const saveDocument = useCallback(async () => {
     if (!text.trim()) return
 
     setSaveStatus('saving')
@@ -178,8 +224,13 @@ function HomePage() {
       const preview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
       let savedDoc
       if (currentDocId) {
-        // Update existing document
-        const existingDoc = documents.find(doc => doc.id === currentDocId)
+        // Update existing document - use functional form to access current documents
+        let existingDoc
+        setDocuments(docs => {
+          existingDoc = docs.find(doc => doc.id === currentDocId)
+          return docs // Don't update yet
+        })
+
         const shouldUpdateTitle = !existingDoc?.title_manually_set
         const title = shouldUpdateTitle
           ? (text.split('\n')[0].substring(0, 50) || 'Untitled Document')
@@ -204,26 +255,28 @@ function HomePage() {
       setSaveStatus('')
       // Could show error notification here
     }
-  }
+  }, [text, currentFilePath, currentDocId])
 
-  const autoSave = async () => {
-    if (text.trim()) {
-      await saveDocument()
-    }
-  }
+  // Keep ref updated with latest saveDocument
+  useEffect(() => {
+    saveDocumentRef.current = saveDocument
+  }, [saveDocument])
 
   // Auto-save effect
   useEffect(() => {
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current)
     }
-    
+
     if (text.trim()) {
       autoSaveTimeout.current = setTimeout(() => {
-        autoSave()
+        // Use ref to call latest saveDocument without causing re-renders
+        if (saveDocumentRef.current) {
+          saveDocumentRef.current()
+        }
       }, 3000) // Auto-save after 3 seconds of inactivity
     }
-    
+
     return () => {
       if (autoSaveTimeout.current) {
         clearTimeout(autoSaveTimeout.current)
@@ -309,6 +362,24 @@ function HomePage() {
     }
   }, [addToRecentFiles])
 
+  // Toggle pin state for a recent file
+  const togglePin = useCallback((filePath, e) => {
+    e.stopPropagation() // Prevent opening the file
+
+    setRecentFiles(prev => {
+      const updated = prev.map(file =>
+        file.path === filePath
+          ? { ...file, isPinned: !file.isPinned }
+          : file
+      )
+
+      const sorted = sortRecentFiles(updated)
+      const limited = limitRecentFiles(sorted, 15)
+      localStorage.setItem('prose_recent_files', JSON.stringify(limited))
+      return limited
+    })
+  }, [])
+
   // Save file as (show save dialog)
   const saveFileAs = useCallback(async () => {
     if (!fileSystemApi.isAvailable()) {
@@ -343,7 +414,15 @@ function HomePage() {
     })
 
     return cleanup
-  }, [newDocument, openFile, saveFileAs])
+  }, [newDocument, saveDocument, openFile, saveFileAs])
+
+  // Cleanup: abort any streaming requests when component unmounts
+  useEffect(() => {
+    return () => {
+      console.log('[HomePage] Unmounting, ensuring any active execution is cancelled...')
+      cancelExecution()
+    }
+  }, [cancelExecution])
 
 
   const deleteDocument = async (docId, e) => {
@@ -396,106 +475,6 @@ function HomePage() {
   const cancelRename = () => {
     setEditingDocId(null)
     setEditingTitle('')
-  }
-
-  // Drag and Drop handlers
-  const handleDragStart = (e, doc) => {
-    setDraggedDoc(doc)
-    e.dataTransfer.effectAllowed = 'move'
-    // Add dragging class after a slight delay to prevent immediate visual feedback
-    setTimeout(() => {
-      e.target.classList.add('opacity-50')
-    }, 0)
-  }
-
-  const handleDragEnd = (e) => {
-    e.target.classList.remove('opacity-50')
-    setDraggedDoc(null)
-    setDragOverDocId(null)
-  }
-
-  const handleDragOver = (e, doc) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    
-    // Only update if we're actually over a different document
-    if (draggedDoc && draggedDoc.id !== doc.id) {
-      const draggedIndex = documents.findIndex(d => d.id === draggedDoc.id)
-      const targetIndex = documents.findIndex(d => d.id === doc.id)
-      
-      // Determine if we're dragging up or down
-      if (draggedIndex < targetIndex) {
-        // Dragging down - show indicator below the target
-        setDropPosition('after')
-      } else {
-        // Dragging up - show indicator above the target
-        setDropPosition('before')
-      }
-      
-      setDragOverDocId(doc.id)
-    }
-  }
-
-  const handleDragLeave = (e) => {
-    // Only reset if we're leaving the drop zone entirely
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      setDragOverDocId(null)
-    }
-  }
-
-  const handleDrop = async (e, targetDoc) => {
-    e.preventDefault()
-    
-    if (!draggedDoc || draggedDoc.id === targetDoc.id) {
-      setDragOverDocId(null)
-      return
-    }
-
-    // Find indices
-    const draggedIndex = documents.findIndex(doc => doc.id === draggedDoc.id)
-    const targetIndex = documents.findIndex(doc => doc.id === targetDoc.id)
-
-    if (draggedIndex === -1 || targetIndex === -1) {
-      setDragOverDocId(null)
-      return
-    }
-
-    // Create new array with reordered documents
-    const newDocuments = [...documents]
-    const [removed] = newDocuments.splice(draggedIndex, 1)
-    
-    // Adjust insertion index based on drop position
-    let insertIndex = targetIndex
-    if (dropPosition === 'after') {
-      // If dropping after, we need to adjust the index
-      insertIndex = draggedIndex < targetIndex ? targetIndex : targetIndex + 1
-    } else {
-      // If dropping before
-      insertIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex
-    }
-    
-    newDocuments.splice(insertIndex, 0, removed)
-
-    // Update state immediately for responsive UI
-    setDocuments(newDocuments)
-    setDragOverDocId(null)
-
-    // Persist the new order to the backend
-    try {
-      // Create array of document orders with their new positions
-      const documentOrders = newDocuments.map((doc, index) => ({
-        id: doc.id,
-        order: index
-      }))
-      
-      // Call API to update order in database
-      await documentApi.updateOrder(documentOrders)
-    } catch (error) {
-      console.error('Failed to save document order:', error)
-      // Revert the order on error
-      setDocuments(documents)
-      // Optionally show an error notification to the user
-    }
   }
 
   // Formatting helper functions
@@ -611,7 +590,9 @@ function HomePage() {
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 min-w-[80px]">
             {saveStatus === 'saving' && (
               <>
-                <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                <div
+                  className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin-gpu"
+                ></div>
                 <span>Saving...</span>
               </>
             )}
@@ -628,7 +609,9 @@ function HomePage() {
           {/* Agent execution indicator */}
           {isExecuting && (
             <div className="flex items-center gap-2 text-sm">
-              <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+              <div
+                className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin-gpu"
+              ></div>
               <span className="text-blue-600 dark:text-blue-400 font-medium">
                 {executionProgress?.agentId ? `Running ${executionProgress.agentId.replace('-agent', '')}...` : 'Running agent...'}
               </span>
@@ -780,7 +763,9 @@ function HomePage() {
           <div className="overflow-y-auto overflow-x-hidden h-full pb-20">
             {loadingDocuments ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <div className="w-6 h-6 border border-gray-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <div
+                  className="w-6 h-6 border border-gray-400 border-t-transparent rounded-full animate-spin-gpu mx-auto mb-2"
+                ></div>
                 <p>Loading files...</p>
               </div>
             ) : recentFiles.length === 0 ? (
@@ -792,46 +777,88 @@ function HomePage() {
                 <p className="text-xs">Press Cmd+O to open a file</p>
               </div>
             ) : (
-              recentFiles.map((file) => (
-              <div
-                key={file.path}
-                onClick={() => openRecentFile(file.path)}
-                className={`p-4 border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer group transition-colors ${
-                  currentFilePath === file.path ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-2 flex-1 min-w-0">
-                    <svg className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{file.path}</p>
-                      {file.preview && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{file.preview}</p>
-                      )}
+              recentFiles.map((file, index) => {
+                // Determine if we need a separator
+                const prevFile = index > 0 ? recentFiles[index - 1] : null
+                const showSeparator = prevFile?.isPinned && !file.isPinned
+
+                return (
+                  <Fragment key={file.path}>
+                    {showSeparator && (
+                      <div className="border-t border-gray-200 dark:border-neutral-600 my-2">
+                        <div className="text-xs text-gray-400 dark:text-gray-500 px-4 py-1 uppercase tracking-wide">
+                          Recent
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openRecentFile(file.path)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          openRecentFile(file.path)
+                        }
+                      }}
+                      className={`p-4 border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer group transition-colors ${
+                        currentFilePath === file.path ? 'bg-gray-100 dark:bg-neutral-800 border-gray-300 dark:border-neutral-600' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          {/* Pin button */}
+                          <button
+                            onClick={(e) => togglePin(file.path, e)}
+                            className={`p-1 rounded transition-all flex-shrink-0 ${
+                              file.isPinned
+                                ? 'text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300'
+                                : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100'
+                            }`}
+                            title={file.isPinned ? 'Unpin file' : 'Pin file'}
+                            aria-label={file.isPinned ? 'Unpin file' : 'Pin file'}
+                          >
+                            <svg className="w-4 h-4" fill={file.isPinned ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                            </svg>
+                          </button>
+
+                          <svg className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+
+                          <div className="flex-1 min-w-0 overflow-hidden">
+                            <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{file.path}</p>
+                            {file.preview && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{file.preview}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Remove button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setRecentFiles(prev => {
+                              const updated = prev.filter(f => f.path !== file.path)
+                              localStorage.setItem('prose_recent_files', JSON.stringify(updated))
+                              return updated
+                            })
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                          title="Remove from recent"
+                          aria-label="Remove from recent"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setRecentFiles(prev => {
-                        const updated = prev.filter(f => f.path !== file.path)
-                        localStorage.setItem('prose_recent_files', JSON.stringify(updated))
-                        return updated
-                      })
-                    }}
-                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                    title="Remove from recent"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))
+                  </Fragment>
+                )
+              })
             )}
           </div>
         </div>
@@ -840,79 +867,99 @@ function HomePage() {
         <div className={`fixed top-24 left-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
           agentPanelOpen ? 'translate-x-0' : '-translate-x-[28rem]'
         }`}>
-          <AgentPanel
-            onClose={() => setAgentPanelOpen(false)}
-            onAgentSelected={handleAgentSelected}
-          />
+          {agentPanelOpen && (
+            <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading...</div>}>
+              <AgentPanel
+                onClose={() => setAgentPanelOpen(false)}
+                onAgentSelected={handleAgentSelected}
+              />
+            </Suspense>
+          )}
         </div>
 
         {/* Change Proposal Panel */}
         <div className={`fixed top-24 right-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
           proposalPanelOpen ? 'translate-x-0' : 'translate-x-[28rem]'
         }`}>
-          <ChangeProposalPanel
-            onClose={() => setProposalPanelOpen(false)}
-            onApplyChange={(newContent) => setText(newContent)}
-          />
+          {proposalPanelOpen && (
+            <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading...</div>}>
+              <ChangeProposalPanel
+                onClose={() => setProposalPanelOpen(false)}
+                onApplyChange={(newContent) => setText(newContent)}
+              />
+            </Suspense>
+          )}
         </div>
 
         {/* Promptions Control Panel */}
         <div className={`fixed bottom-8 left-1/2 transform -translate-x-1/2 w-[800px] max-w-[calc(100vw-4rem)] bg-white dark:bg-neutral-700 shadow-xl rounded-lg transition-transform duration-300 ease-in-out z-20 overflow-hidden ${
           steeringPanelOpen ? 'translate-y-0' : 'translate-y-[calc(100%+4rem)]'
         }`}>
-          <div className="p-4 border-b border-gray-200 dark:border-neutral-600 flex items-center justify-between">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              {selectedAgent ? `Configure ${selectedAgent.replace(/-/g, ' ')}` : 'Agent Options'}
-            </h2>
-            <button
-              onClick={() => setSteeringPanelOpen(false)}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded transition-colors"
-              title="Close options panel"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="p-4">
-            <PromptionsControlPanel
-              agentId={selectedAgent}
-              documentState={documentState}
-              onChange={handlePromptionsChange}
-            />
-          </div>
+          {steeringPanelOpen && (
+            <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading options...</div>}>
+              <>
+                <div className="p-4 border-b border-gray-200 dark:border-neutral-600 flex items-center justify-between">
+                  <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    {selectedAgent ? `Configure ${selectedAgent.replace(/-/g, ' ')}` : 'Agent Options'}
+                  </h2>
+                  <button
+                    onClick={() => setSteeringPanelOpen(false)}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded transition-colors"
+                    title="Close options panel"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-4">
+                  <PromptionsControlPanel
+                    agentId={selectedAgent}
+                    documentState={documentState}
+                    onChange={handlePromptionsChange}
+                  />
+                </div>
 
-          {/* Execute button */}
-          <div className="p-4 border-t border-gray-200 dark:border-neutral-600 flex justify-end gap-2">
-            <button
-              onClick={() => setSteeringPanelOpen(false)}
-              className="px-4 py-2 text-sm border border-gray-200 dark:border-neutral-500 rounded-md text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-neutral-600 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                if (selectedAgent && !isExecuting) {
-                  executeAgent(selectedAgent)
-                  setSteeringPanelOpen(false)
-                }
-              }}
-              disabled={!selectedAgent || isExecuting}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              {isExecuting && (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              )}
-              {isExecuting ? 'Running...' : 'Execute Agent'}
-            </button>
-          </div>
+                {/* Execute button */}
+                <div className="p-4 border-t border-gray-200 dark:border-neutral-600 flex justify-end gap-2">
+                  <button
+                    onClick={() => setSteeringPanelOpen(false)}
+                    className="px-4 py-2 text-sm border border-gray-200 dark:border-neutral-500 rounded-md text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-neutral-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedAgent && !isExecuting) {
+                        executeAgent(selectedAgent)
+                        setSteeringPanelOpen(false)
+                      }
+                    }}
+                    disabled={!selectedAgent || isExecuting}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    {isExecuting && (
+                      <div
+                        className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin-gpu"
+                      ></div>
+                    )}
+                    {isExecuting ? 'Running...' : 'Execute Agent'}
+                  </button>
+                </div>
+              </>
+            </Suspense>
+          )}
         </div>
 
         {/* Settings Panel */}
-        <SettingsPanel
-          isOpen={settingsPanelOpen}
-          onClose={() => setSettingsPanelOpen(false)}
-        />
+        {settingsPanelOpen && (
+          <Suspense fallback={null}>
+            <SettingsPanel
+              isOpen={settingsPanelOpen}
+              onClose={() => setSettingsPanelOpen(false)}
+            />
+          </Suspense>
+        )}
 
         {/* Floating Formatting Toolbar */}
         {viewMode === 'edit' && (
@@ -1112,64 +1159,13 @@ function HomePage() {
 
             {viewMode === 'preview' && (
             <div className="p-16 preview-container">
-              <div className="prose prose-lg dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
-                  components={{
-                    p: ({ children }) => {
-                      if (!children || (Array.isArray(children) && children.length === 0)) {
-                        return <div className="h-6" />;
-                      }
-                      return <p className="mb-6 text-lg leading-relaxed text-gray-700 dark:text-gray-300 text-justify font-light font-sans preview-paragraph">{children}</p>;
-                    },
-                    h1: ({ children }) => <h1 className="text-4xl font-normal text-gray-900 dark:text-gray-100 mb-8 mt-2 text-center preview-h1">{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-3xl font-normal text-gray-900 dark:text-gray-100 mb-6 mt-8 preview-h2">{children}</h2>,
-                    h3: ({ children }) => <h3 className="text-2xl font-normal text-gray-900 dark:text-gray-100 mb-4 mt-6 preview-h3">{children}</h3>,
-                    h4: ({ children }) => <h4 className="text-xl font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h4">{children}</h4>,
-                    h5: ({ children }) => <h5 className="text-lg font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h5">{children}</h5>,
-                    h6: ({ children }) => <h6 className="text-base font-normal text-gray-900 dark:text-gray-100 mb-3 mt-4 preview-h6">{children}</h6>,
-                    ul: ({ children }) => <ul className="mb-6 list-disc pl-6 space-y-2 text-lg text-gray-700 dark:text-gray-300 font-light">{children}</ul>,
-                    ol: ({ children }) => <ol className="mb-6 list-decimal pl-6 space-y-2 text-lg text-gray-700 dark:text-gray-300 font-light">{children}</ol>,
-                    li: ({ children }) => <li className="leading-relaxed preview-li">{children}</li>,
-                    blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 dark:border-neutral-600 pl-6 my-6 italic text-gray-700 dark:text-gray-300">{children}</blockquote>,
-                    code: ({ inline, children }) => {
-                      if (inline) {
-                        return <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-neutral-700 text-sm font-mono rounded text-gray-800 dark:text-gray-200">{children}</code>;
-                      }
-                      return <code>{children}</code>;
-                    },
-                    pre: ({ children }) => (
-                      <pre className="mb-6 p-4 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-lg overflow-x-auto">
-                        <code className="text-gray-800 dark:text-gray-200">{children}</code>
-                      </pre>
-                    ),
-                    strong: ({ children }) => <strong className="font-medium text-gray-900 dark:text-gray-100">{children}</strong>,
-                    a: ({ href, children }) => {
-                      const handleClick = (e) => {
-                        // In Electron, the main process will handle external links
-                        // via the will-navigate event, so we just need to handle
-                        // the fallback for web browsers
-                        if (!href?.startsWith('http://localhost')) {
-                          e.preventDefault();
-                          window.open(href, '_blank', 'noopener,noreferrer');
-                        }
-                      };
-                      return (
-                        <a
-                          href={href}
-                          onClick={handleClick}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline decoration-1 underline-offset-2 cursor-pointer"
-                        >
-                          {children}
-                        </a>
-                      );
-                    }
-                  }}
-                >
-                  {preprocessMarkdown(text) || '# Start writing some markdown!\n\nYour preview will appear here.'}
-                </ReactMarkdown>
-              </div>
+              <Suspense fallback={
+                <div className="flex items-center justify-center py-16">
+                  <div className="text-gray-500 dark:text-gray-400">Loading preview...</div>
+                </div>
+              }>
+                <MarkdownPreview text={text} preprocessMarkdown={preprocessMarkdown} />
+              </Suspense>
             </div>
             )}
         </div>

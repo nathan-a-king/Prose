@@ -18,8 +18,21 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom']
+          // Core React libraries - always loaded
+          'vendor-react': ['react', 'react-dom'],
+
+          // Routing - always loaded
+          'vendor-router': ['react-router-dom'],
+
+          // Markdown rendering - lazy loaded with MarkdownPreview
+          'vendor-markdown': [
+            'react-markdown',
+            'remark-gfm',
+            'rehype-highlight'
+          ],
+
+          // Syntax highlighting - lazy loaded with markdown
+          'vendor-highlight': ['highlight.js']
         }
       }
     }

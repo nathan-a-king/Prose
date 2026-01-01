@@ -3,7 +3,7 @@ import React from 'react';
 export default function SyntaxHighlighter({ text }) {
   if (!text) {
     return (
-      <span className="text-gray-400 dark:text-gray-500">
+      <span className="text-gray-500 opacity-60">
         Start writing markdown...
       </span>
     );
@@ -21,37 +21,37 @@ export default function SyntaxHighlighter({ text }) {
     let result = escapeHtml(text);
 
     // Headers
-    result = result.replace(/^(#{1,6}\s)/gm, '<span class="text-gray-400 dark:text-gray-500">$1</span>');
+    result = result.replace(/^(#{1,6}\s)/gm, '<span class="text-gray-500 opacity-60">$1</span>');
 
     // Bold
-    result = result.replace(/(\*\*|__)(.*?)(\*\*|__)/g, '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>');
+    result = result.replace(/(\*\*|__)(.*?)(\*\*|__)/g, '<span class="text-gray-500 opacity-60">$1</span>$2<span class="text-gray-500 opacity-60">$3</span>');
 
     // Italic
-    result = result.replace(/(\*|_)([^\*_]+?)(\*|_)/g, '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>');
+    result = result.replace(/(\*|_)([^\*_]+?)(\*|_)/g, '<span class="text-gray-500 opacity-60">$1</span>$2<span class="text-gray-500 opacity-60">$3</span>');
 
     // Strikethrough
-    result = result.replace(/(~~)(.*?)(~~)/g, '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>');
+    result = result.replace(/(~~)(.*?)(~~)/g, '<span class="text-gray-500 opacity-60">$1</span>$2<span class="text-gray-500 opacity-60">$3</span>');
 
     // Inline code
-    result = result.replace(/(`)([^`]+?)(`)/g, '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3</span>');
+    result = result.replace(/(`)([^`]+?)(`)/g, '<span class="text-gray-500 opacity-60">$1</span>$2<span class="text-gray-500 opacity-60">$3</span>');
 
     // Code blocks
-    result = result.replace(/(```)/g, '<span class="text-gray-400 dark:text-gray-500">$1</span>');
+    result = result.replace(/(```)/g, '<span class="text-gray-500 opacity-60">$1</span>');
 
     // Blockquotes
-    result = result.replace(/^(&gt;\s|>\s)/gm, '<span class="text-gray-400 dark:text-gray-500">$1</span>');
+    result = result.replace(/^(&gt;\s|>\s)/gm, '<span class="text-gray-500 opacity-60">$1</span>');
 
     // Unordered lists
-    result = result.replace(/^([\*\-\+]\s)/gm, '<span class="text-gray-400 dark:text-gray-500">$1</span>');
+    result = result.replace(/^([\*\-\+]\s)/gm, '<span class="text-gray-500 opacity-60">$1</span>');
 
     // Ordered lists
-    result = result.replace(/^(\d+\.\s)/gm, '<span class="text-gray-400 dark:text-gray-500">$1</span>');
+    result = result.replace(/^(\d+\.\s)/gm, '<span class="text-gray-500 opacity-60">$1</span>');
 
     // Links
-    result = result.replace(/(\[)([^\]]+?)(\])(\()([^\)]+?)(\))/g, '<span class="text-gray-400 dark:text-gray-500">$1</span>$2<span class="text-gray-400 dark:text-gray-500">$3$4</span>$5<span class="text-gray-400 dark:text-gray-500">$6</span>');
+    result = result.replace(/(\[)([^\]]+?)(\])(\()([^\)]+?)(\))/g, '<span class="text-gray-500 opacity-60">$1</span>$2<span class="text-gray-500 opacity-60">$3$4</span>$5<span class="text-gray-500 opacity-60">$6</span>');
 
     // Horizontal rules
-    result = result.replace(/^(---|\*\*\*|___)$/gm, '<span class="text-gray-400 dark:text-gray-500">$1</span>');
+    result = result.replace(/^(---|\*\*\*|___)$/gm, '<span class="text-gray-500 opacity-60">$1</span>');
 
     return result;
   };

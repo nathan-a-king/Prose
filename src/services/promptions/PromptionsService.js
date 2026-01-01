@@ -75,14 +75,17 @@ class PromptionsService {
    * @param {string} agentId - Agent identifier
    * @param {DocumentState} documentState - Current document state
    * @param {Function} onProgress - Callback for progressive updates
-   * @returns {Promise<BasicOptions>} Final generated options
+   * @returns {Promise<{options: BasicOptions, abort: Function|null}>} Final generated options and abort function
    */
   async getOptionsForAgentStreaming(agentId, documentState, onProgress) {
     const agent = getAgent(agentId)
 
     if (!agent) {
       console.error(`[PromptionsService] Agent not found: ${agentId}`)
-      return this.basicOptionSet.emptyOptions()
+      return {
+        options: this.basicOptionSet.emptyOptions(),
+        abort: null
+      }
     }
 
     try {
@@ -93,7 +96,7 @@ class PromptionsService {
 
       let accumulated = ''
 
-      await makeStreamingCompletion(
+      const abort = await makeStreamingCompletion(
         {
           systemPrompt,
           userPrompt,
@@ -118,10 +121,16 @@ class PromptionsService {
       const jsonString = this._extractJSON(accumulated)
       const finalOptions = this.basicOptionSet.validateJSON(jsonString)
 
-      return finalOptions || this.basicOptionSet.emptyOptions()
+      return {
+        options: finalOptions || this.basicOptionSet.emptyOptions(),
+        abort
+      }
     } catch (error) {
       console.error('[PromptionsService] Error streaming options:', error)
-      return this.basicOptionSet.emptyOptions()
+      return {
+        options: this.basicOptionSet.emptyOptions(),
+        abort: null
+      }
     }
   }
 

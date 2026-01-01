@@ -2,6 +2,9 @@
    <img src="public/images/prose-logo-small.png" alt="Prose Logo" style="display: inline-block; width: 150px; height: auto;">
 </div>
 <br>
+
+[![Test Suite](https://github.com/nathan-a-king/Prose/actions/workflows/test.yml/badge.svg)](https://github.com/nathan-a-king/Prose/actions/workflows/test.yml)
+
 A minimalist Markdown editor designed for focused writing with AI-powered assistance and real-time preview capabilities.
 
 I live in Markdown. Every blog post, every note, every README, every chapter of my novel—it all starts as plain text with simple formatting marks. After years of this workflow, I've developed strong opinions about how a Markdown editor should work. Apparently, *very* strong opinions.
@@ -51,10 +54,26 @@ It's the editor I wished existed when I was deep in Chapter 12, trying to mainta
 - **Rich Text Toolbar** - Quick formatting buttons for common Markdown elements
 - **Drag & Drop** - Reorder documents in the sidebar with visual feedback
 
+### Multi-Agent Editorial System
+Prose features a sophisticated AI-powered editorial system with specialized agents that can assist with different stages of the writing process:
+
+- **Brainstorm Agent** - Generate ideas, outlines, and creative directions for your writing
+- **Draft Agent** - Produce initial drafts and expand on rough concepts
+- **Revision Agent** - Suggest structural improvements and comprehensive revisions
+- **Editor Agent** - Provide detailed editorial feedback on grammar, style, and clarity
+- **Argument Strengthener** - Enhance logical flow and strengthen argumentative writing
+
+**Agent Features:**
+- **Change Proposals** - Agents generate tracked proposals that you can accept, reject, or modify
+- **Promptions System** - Dynamic parameter configuration for fine-tuned agent behavior
+- **Pipeline Orchestration** - Chain multiple agents together for complex editorial workflows
+- **Document State Management** - Track changes, annotations, and revision history
+
 ### AI Integration
-- **Writing Suggestions** - Generate AI-powered improvements for your content
-- **Interactive Q&A** - Ask questions about your document and get contextual answers
-- **OpenAI Integration** - Uses GPT-3.5-turbo for intelligent writing assistance
+- **Multi-Agent Architecture** - Specialized agents for different writing tasks and stages
+- **Change Tracking** - Review and apply AI-suggested changes with full transparency
+- **Contextual Assistance** - Agents understand your document context and writing goals
+- **OpenAI Integration** - Powered by advanced language models for intelligent assistance
 
 ### Technical Features
 - **Self-Contained** - All data stored locally in platform-specific user directories
@@ -63,6 +82,7 @@ It's the editor I wished existed when I was deep in Chapter 12, trying to mainta
 - **Syntax Highlighting** - Code blocks with highlight.js support
 - **GitHub Flavored Markdown** - Full GFM support including tables, strikethrough, and more
 - **macOS Integration** - Native traffic light buttons with proper header spacing
+- **Comprehensive Test Suite** - Full test coverage with Vitest for reliability
 
 ## Technology Stack
 
@@ -72,8 +92,11 @@ It's the editor I wished existed when I was deep in Chapter 12, trying to mainta
 - **Build Tool**: Vite with hot module replacement
 - **Backend**: Express.js server with REST API (embedded in Electron)
 - **Database**: Better SQLite3 for document storage
-- **Markdown**: react-markdown with remark-gfm and rehype-highlight
-- **AI**: OpenAI GPT-3.5-turbo integration
+- **Markdown**: react-markdown with remark-gfm and rehype-highlight, plus marked for parsing
+- **AI**: Multi-agent system powered by OpenAI with orchestration layer
+- **Testing**: Vitest with React Testing Library, happy-dom, and comprehensive test coverage
+- **Validation**: Zod for runtime type checking and schema validation
+- **Syntax Highlighting**: highlight.js for code block rendering
 
 ## Getting Started
 
@@ -104,6 +127,14 @@ It's the editor I wished existed when I was deep in Chapter 12, trying to mainta
 ### Running the Application
 
 #### Development Mode
+
+**Option 1: Combined (Recommended)**
+```bash
+# Starts both Vite dev server and Electron automatically
+npm run app
+```
+
+**Option 2: Manual**
 ```bash
 # Terminal 1: Start Vite dev server
 npm run dev
@@ -131,6 +162,7 @@ npm run dist:linux   # Linux
 | `npm run build` | Create optimized production build |
 | `npm run preview` | Preview production build locally |
 | `npm start` | Run Express production server (standalone) |
+| `npm run app` | Run both Vite dev server and Electron in dev mode (recommended) |
 | `npm run electron` | Run Electron app in production mode |
 | `npm run electron:dev` | Run Electron app in development mode |
 | `npm run electron:build` | Build and package Electron app |
@@ -138,24 +170,59 @@ npm run dist:linux   # Linux
 | `npm run dist:mac` | Build for macOS |
 | `npm run dist:win` | Build for Windows |
 | `npm run dist:linux` | Build for Linux |
+| `npm test` | Run test suite in watch mode |
+| `npm run test:ui` | Run test suite with interactive UI |
+| `npm run test:run` | Run test suite once (CI mode) |
+| `npm run test:coverage` | Run tests with coverage report |
 
 ## Architecture
 
 ### Frontend Structure
 ```
 src/
+├── agents/                        # AI Agent Contracts
+│   ├── index.js                   # Agent system initialization
+│   ├── brainstormAgent.js         # Brainstorming and ideation agent
+│   ├── draftAgent.js              # Initial draft generation agent
+│   ├── revisionAgent.js           # Structural revision agent
+│   ├── editorAgent.js             # Editorial feedback agent
+│   └── argumentStrengthenerAgent.js # Argument enhancement agent
 ├── components/
+│   ├── agents/                    # Agent UI Components
+│   │   ├── AgentPanel.jsx         # Main agent interface panel
+│   │   ├── ChangeProposalPanel.jsx # Change review and approval UI
+│   │   ├── PromptionsControlPanel.jsx # Agent parameter configuration
+│   │   ├── PromptionsOptionsRenderer.jsx # Promptions option renderer
+│   │   └── SteerControlBar.jsx    # Agent steering controls
 │   ├── layout/Layout.jsx          # Main layout wrapper
-│   └── ui/ThemeToggle.jsx         # Dark/light mode toggle
+│   ├── settings/SettingsPanel.jsx # Application settings
+│   ├── ui/ThemeToggle.jsx         # Dark/light mode toggle
+│   ├── MarkdownEditor.jsx         # Markdown editing component
+│   ├── MarkdownPreview.jsx        # Live preview component
+│   └── SyntaxHighlighter.jsx      # Code syntax highlighting
 ├── contexts/
+│   ├── AgentContext.jsx           # Multi-agent system state
 │   └── ThemeContext.jsx           # Theme state management
+├── lib/
+│   └── promptions/basicOptions.js # Promptions configuration options
 ├── pages/
 │   └── HomePage.jsx               # Main editor interface
 ├── services/
-│   └── documentApi.js             # API client for documents
-├── styles/
-│   ├── index.css                  # Global styles
-│   └── editor.css                 # Editor-specific styles
+│   ├── agents/                    # Agent Services
+│   │   ├── agentRegistry.js       # Agent registration and lookup
+│   │   ├── documentState.js       # Document state and change tracking
+│   │   ├── orchestrator.js        # Pipeline orchestration
+│   │   └── aiService.js           # AI API integration
+│   ├── promptions/PromptionsService.js # Promptions management
+│   ├── documentApi.js             # Document CRUD API client
+│   └── fileSystemApi.js           # File system operations
+├── test/                          # Test Infrastructure
+│   ├── factories/                 # Test data factories
+│   ├── mocks/                     # API mocks
+│   ├── utils/                     # Test utilities
+│   └── setup.js                   # Test configuration
+├── utils/
+│   └── highlightConfig.js         # Syntax highlighting config
 ├── App.jsx                        # Root component with routing
 └── main.jsx                       # Application entry point
 ```
@@ -187,11 +254,18 @@ This ensures that:
 - **Electron Integration**: Native desktop app with embedded Express server
 - **Document Management**: SQLite database stored in user data directory
 - **Real-time Autosave**: React useEffect with debounced saving
-- **AI Integration**: Direct OpenAI API calls with error handling
+- **Multi-Agent System**: Specialized AI agents coordinated through orchestration layer
+  - **Agent Registry**: Dynamic registration and lookup of editorial agents
+  - **Document State**: Immutable state management with change tracking
+  - **Pipeline Orchestration**: Chain multiple agents in sequential workflows
+  - **Change Proposals**: Track and review AI-suggested modifications
+  - **Promptions**: Dynamic parameter system for agent behavior control
+- **AI Integration**: OpenAI-powered agents with context-aware suggestions
 - **Markdown Rendering**: ReactMarkdown with custom components for styling
 - **Theme System**: React Context with localStorage persistence
 - **macOS Traffic Lights**: Custom header layout accommodating native window controls
 - **Drag & Drop**: Reorderable document list with visual feedback
+- **Testing Infrastructure**: Comprehensive Vitest suite with factories and mocks
 
 ## API Endpoints
 
@@ -243,8 +317,9 @@ Documents are automatically reordered when one is moved, maintaining sequential 
 
 ### Tailwind Customization
 - Custom color palette (primary blue shades)
-- Avenir/Avenir Next font stack
-- Custom animations (fade-in, slide-up)
+- Avenir/Avenir Next font stack for body text
+- JetBrains Mono for code blocks
+- Custom animations (fade-in, slide-up, spin-gpu)
 - Dark mode via class strategy
 
 ## AI Features Setup
@@ -259,6 +334,24 @@ The AI features require an OpenAI API key. You can provide it in three ways:
 2. **Runtime Prompt** - The app will ask for your key when first using AI features
 
 3. **localStorage** - Your key is saved locally after first use for convenience
+
+### Using the Multi-Agent System
+
+Prose's editorial agents can help improve your writing at different stages:
+
+1. **Select an Agent** - Choose from brainstorm, draft, revision, editor, or argument strengthener based on your needs
+2. **Configure Promptions** - Adjust agent behavior with dynamic parameters (tone, detail level, focus areas)
+3. **Run the Agent** - Execute the agent on your current document or selection
+4. **Review Proposals** - View suggested changes in the Change Proposal panel
+5. **Apply Changes** - Accept, reject, or modify proposals before applying them
+6. **Create Pipelines** - Chain multiple agents together for complex workflows
+
+**Promptions System:**
+The Promptions system allows fine-grained control over agent behavior:
+- Dynamic parameter configuration for each agent
+- Persistent settings across sessions
+- Context-aware suggestions based on document state
+- Custom promption definitions for specialized use cases
 
 ## Contributing
 
@@ -275,9 +368,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - Built with React 19 and modern web technologies
-- Markdown rendering powered by react-markdown
+- Desktop platform powered by Electron 38
+- Markdown rendering powered by react-markdown and marked
 - Code highlighting by highlight.js
-- AI features powered by OpenAI GPT-3.5-turbo
+- Multi-agent AI system powered by OpenAI
+- Testing infrastructure with Vitest and React Testing Library
 - Styled with Tailwind CSS custom design system
+- Type validation with Zod
 
 > Prose is dedicated to my father, Philip King, who recently passed away unexpectedly. I created Prose to keep myself occupied while grieving. I love you, dad.

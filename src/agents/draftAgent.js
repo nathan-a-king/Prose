@@ -5,7 +5,7 @@
  * Focuses on getting words on page, not perfection.
  */
 
-import { makeStreamingCompletion } from '../services/agents/aiService'
+import { makeStreamingCompletion, makeCompletion } from '../services/agents/aiService'
 import {
   AGENT_STAGES,
   OPERATION_TYPES,
@@ -80,10 +80,11 @@ IMPORTANT: Only perform the specific actions and corrections specified in the us
 
   try {
     let draftContent = ''
+    let abort = null
 
     if (onProgress) {
       // Streaming mode
-      await makeStreamingCompletion(
+      abort = await makeStreamingCompletion(
         {
           systemPrompt,
           userPrompt,
@@ -98,7 +99,6 @@ IMPORTANT: Only perform the specific actions and corrections specified in the us
       )
     } else {
       // Non-streaming mode
-      const { makeCompletion } = await import('../services/agents/aiService')
       draftContent = await makeCompletion({
         systemPrompt,
         userPrompt,
@@ -124,7 +124,8 @@ IMPORTANT: Only perform the specific actions and corrections specified in the us
       success: true,
       proposalsCreated: 1,
       message: `Generated draft with ${countWords(draftContent)} words`,
-      draftContent
+      draftContent,
+      abort
     }
   } catch (error) {
     return {
