@@ -36,7 +36,7 @@ export default function MarkdownPreview({ text, preprocessMarkdown }) {
               <code className="text-gray-800 dark:text-gray-200">{children}</code>
             </pre>
           ),
-          strong: ({ children }) => <strong className="font-normal text-gray-900 dark:text-gray-100">{children}</strong>,
+          strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-gray-100">{children}</strong>,
           a: ({ href, children }) => {
             const handleClick = (e) => {
               // In Electron, the main process will handle external links
