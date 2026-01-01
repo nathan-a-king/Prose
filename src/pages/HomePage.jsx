@@ -301,8 +301,10 @@ function HomePage() {
           // Add a small buffer (2px) to prevent the minimal scrollbar issue
           textareaRef.current.style.height = (scrollHeight + 2) + 'px'
 
-          // Restore cursor position after resize
-          textareaRef.current.setSelectionRange(selectionStart, selectionEnd)
+          // Restore cursor position after resize, if textarea is still mounted
+          if (textareaRef.current) {
+            textareaRef.current.setSelectionRange(selectionStart, selectionEnd)
+          }
 
           // Maintain scroll position
           window.scrollTo({ top: scrollTop, behavior: 'instant' })
