@@ -241,10 +241,10 @@ function parseArgumentResponse(response, documentState) {
       priority = CHANGE_PRIORITIES.MINOR
     }
 
-    // Create proposal as a comment (not a direct edit)
-    // Argument gaps often require research, not just text changes
+    // Create proposal to insert TK marker for argument gaps
+    // These can be approved to add the marker to the document
     proposals.push({
-      type: CHANGE_TYPES.COMMENT,
+      type: CHANGE_TYPES.INSERT,
       location: gap.location,
       originalText: '',
       proposedText: `[TK: ${gap.fix}]`,
@@ -259,11 +259,11 @@ function parseArgumentResponse(response, documentState) {
     })
   }
 
-  // Add evidence needs as comments
+  // Add evidence needs as insertable TK markers
   if (response.evidenceNeeds && Array.isArray(response.evidenceNeeds)) {
     for (const need of response.evidenceNeeds) {
       proposals.push({
-        type: CHANGE_TYPES.COMMENT,
+        type: CHANGE_TYPES.INSERT,
         location: { start: 0, end: 0 },
         originalText: '',
         proposedText: `[TK: ${need.description}]`,
