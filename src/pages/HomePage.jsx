@@ -66,10 +66,36 @@ function HomePage() {
   const [recentFiles, setRecentFiles] = useState([])
   const [editingDocId, setEditingDocId] = useState(null)
   const [editingTitle, setEditingTitle] = useState('')
+  const editModeScrollRef = useRef(0)
+  const previewModeScrollRef = useRef(0)
 
   const handlePromptionsChange = useCallback((promptions) => {
     setCurrentPromptions(promptions)
   }, [setCurrentPromptions])
+
+  // Handle view mode changes with scroll position preservation
+  const handleViewModeChange = useCallback((newMode) => {
+    if (newMode === viewMode) return
+
+    // Save current scroll position for the current mode
+    const scrollTop = window.scrollY || document.documentElement.scrollTop
+    const scrollHeight = document.documentElement.scrollHeight
+    const clientHeight = document.documentElement.clientHeight
+    const maxScroll = scrollHeight - clientHeight
+
+    if (maxScroll > 0) {
+      const percent = scrollTop / maxScroll
+      // Save to the appropriate ref based on current mode
+      if (viewMode === 'edit') {
+        editModeScrollRef.current = percent
+      } else {
+        previewModeScrollRef.current = percent
+      }
+    }
+
+    // Now change the view mode
+    setViewMode(newMode)
+  }, [viewMode])
 
   const handleAgentSelected = useCallback((agentId) => {
     setSelectedAgent(agentId)
@@ -313,11 +339,36 @@ function HomePage() {
     }
   }, [text, viewMode])
 
+  // Restore scroll position after view mode changes and DOM renders
+  useLayoutEffect(() => {
+    // Get the saved position for the new mode
+    const savedPercent = viewMode === 'edit'
+      ? editModeScrollRef.current
+      : previewModeScrollRef.current
+
+    if (savedPercent > 0) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        const scrollHeight = document.documentElement.scrollHeight
+        const clientHeight = document.documentElement.clientHeight
+        const maxScroll = scrollHeight - clientHeight
+
+        if (maxScroll > 0) {
+          const targetScroll = savedPercent * maxScroll
+          window.scrollTo({ top: targetScroll, behavior: 'instant' })
+        }
+      })
+    }
+  }, [viewMode])
+
   const loadDocument = (doc) => {
     setText(doc.content)
     setCurrentDocId(doc.id)
     setCurrentFilePath(null) // Clear file path when loading from database
     setSidebarOpen(false)
+    // Reset scroll positions for new document
+    editModeScrollRef.current = 0
+    previewModeScrollRef.current = 0
   }
 
   const newDocument = useCallback(() => {
@@ -325,6 +376,9 @@ function HomePage() {
     setCurrentDocId(null)
     setCurrentFilePath(null)
     setSidebarOpen(false)
+    // Reset scroll positions for new document
+    editModeScrollRef.current = 0
+    previewModeScrollRef.current = 0
   }, [])
 
   // Open a file from the filesystem
@@ -342,6 +396,9 @@ function HomePage() {
         setCurrentDocId(null) // Clear database document ID
         addToRecentFiles(result.filePath, result.content)
         setSidebarOpen(false)
+        // Reset scroll positions for new document
+        editModeScrollRef.current = 0
+        previewModeScrollRef.current = 0
       }
     } catch (error) {
       console.error('Failed to open file:', error)
@@ -359,6 +416,9 @@ function HomePage() {
       setCurrentDocId(null)
       addToRecentFiles(filePath, content)
       setSidebarOpen(false)
+      // Reset scroll positions for new document
+      editModeScrollRef.current = 0
+      previewModeScrollRef.current = 0
     } catch (error) {
       console.error('Failed to open recent file:', error)
       // Remove from recent files if it doesn't exist
@@ -629,7 +689,7 @@ function HomePage() {
           {/* View Mode Toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-neutral-700 rounded-lg p-1">
             <button
-              onClick={() => setViewMode('edit')}
+              onClick={() => handleViewModeChange('edit')}
               className={`px-4 py-1.5 text-sm font-normal rounded-md transition-colors ${
                 viewMode === 'edit'
                   ? 'bg-white dark:bg-neutral-600 text-gray-900 dark:text-gray-100 shadow-sm'
@@ -639,7 +699,7 @@ function HomePage() {
               Edit
             </button>
             <button
-              onClick={() => setViewMode('preview')}
+              onClick={() => handleViewModeChange('preview')}
               className={`px-4 py-1.5 text-sm font-normal rounded-md transition-colors ${
                 viewMode === 'preview'
                   ? 'bg-white dark:bg-neutral-600 text-gray-900 dark:text-gray-100 shadow-sm'
