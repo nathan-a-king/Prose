@@ -22,7 +22,6 @@ export function AgentProvider({ children }) {
   const [isExecuting, setIsExecuting] = useState(false)
   const [currentStep, setCurrentStep] = useState(null)
   const [executionProgress, setExecutionProgress] = useState(null)
-  const [currentPromptions, setCurrentPromptions] = useState(null)
   const [selectedAgent, setSelectedAgent] = useState(null)
 
   // Initialize agent system on mount
@@ -36,11 +35,9 @@ export function AgentProvider({ children }) {
    * Initialize or update document state
    */
   const initializeDocument = useCallback((content, metadata = {}) => {
-    console.log('[AgentContext] Initializing document', { contentLength: content?.length, metadata })
     const state = new DocumentState(content, metadata)
     setDocumentState(state)
     updateProposalsAndAnnotations(state)
-    console.log('[AgentContext] Document initialized successfully')
   }, [])
 
   /**
@@ -66,7 +63,6 @@ export function AgentProvider({ children }) {
    * Execute a single agent
    */
   const executeAgent = useCallback(async (agentId, options = {}) => {
-    console.log('[AgentContext] executeAgent called', { agentId, hasDocumentState: !!documentState })
     if (!documentState) {
       console.error('[AgentContext] No document initialized. DocumentState is null.')
       throw new Error('No document initialized')
@@ -76,13 +72,7 @@ export function AgentProvider({ children }) {
     setExecutionProgress({ type: 'agent', agentId, status: 'running' })
 
     try {
-      // Merge promptions into options
-      const mergedOptions = {
-        ...options,
-        promptions: currentPromptions || options.promptions || null
-      }
-
-      const result = await orchestrator.executeAgent(agentId, documentState, mergedOptions)
+      const result = await orchestrator.executeAgent(agentId, documentState, options)
 
       // Update proposals and annotations
       updateProposalsAndAnnotations(documentState)
@@ -96,7 +86,7 @@ export function AgentProvider({ children }) {
       setIsExecuting(false)
       setTimeout(() => setExecutionProgress(null), 3000)
     }
-  }, [documentState, orchestrator, updateProposalsAndAnnotations, currentPromptions])
+  }, [documentState, orchestrator, updateProposalsAndAnnotations])
 
   /**
    * Execute a pipeline
@@ -232,7 +222,6 @@ export function AgentProvider({ children }) {
     isExecuting,
     currentStep,
     executionProgress,
-    currentPromptions,
     selectedAgent,
 
     // Actions
@@ -246,7 +235,6 @@ export function AgentProvider({ children }) {
     getPendingProposals,
     getFilteredProposals,
     cancelExecution,
-    setCurrentPromptions,
     setSelectedAgent,
 
     // Utilities

@@ -428,21 +428,6 @@ describe.skip('AgentContext - Initialization', () => {
       expect(screen.getByTestId('progress')).toHaveTextContent('no')
     })
 
-    test('exposes currentPromptions', () => {
-      function PromptionsComponent() {
-        const { currentPromptions } = useAgents()
-        return <span data-testid="promptions">{currentPromptions ? 'yes' : 'no'}</span>
-      }
-
-      render(
-        <AgentProvider>
-          <PromptionsComponent />
-        </AgentProvider>
-      )
-
-      expect(screen.getByTestId('promptions')).toHaveTextContent('no')
-    })
-
     test('exposes selectedAgent', () => {
       function SelectedAgentComponent() {
         const { selectedAgent } = useAgents()
