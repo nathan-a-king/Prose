@@ -144,53 +144,6 @@ describe('AgentContext - Execution', () => {
       })
     })
 
-    test('merges currentPromptions into options', async () => {
-      const user = userEvent.setup()
-
-      mockOrchestrator.executeAgent.mockResolvedValue({ success: true })
-
-      function PromptionsComponent() {
-        const {
-          initializeDocument,
-          executeAgent,
-          setCurrentPromptions
-        } = useAgents()
-
-        return (
-          <div>
-            <button onClick={() => initializeDocument('Test')}>Initialize</button>
-            <button onClick={() => setCurrentPromptions({ focus: 'clarity' })}>
-              Set Promptions
-            </button>
-            <button onClick={() => executeAgent('test-agent', { temperature: 0.7 })}>
-              Execute
-            </button>
-          </div>
-        )
-      }
-
-      render(
-        <AgentProvider>
-          <PromptionsComponent />
-        </AgentProvider>
-      )
-
-      await user.click(screen.getByText('Initialize'))
-      await user.click(screen.getByText('Set Promptions'))
-      await user.click(screen.getByText('Execute'))
-
-      await waitFor(() => {
-        expect(mockOrchestrator.executeAgent).toHaveBeenCalledWith(
-          'test-agent',
-          expect.anything(),
-          expect.objectContaining({
-            temperature: 0.7,
-            promptions: { focus: 'clarity' }
-          })
-        )
-      })
-    })
-
     test('updates proposals after agent execution', async () => {
       const user = userEvent.setup()
 

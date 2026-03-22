@@ -93,8 +93,6 @@ export function registerAgent(agent) {
     ...agent,
     registeredAt: new Date()
   })
-
-  console.log(`[AgentRegistry] Registered agent: ${agent.name} (${agent.id})`)
 }
 
 /**

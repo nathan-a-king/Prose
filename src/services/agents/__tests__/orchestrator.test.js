@@ -134,8 +134,7 @@ describe('Orchestrator - Agent Execution', () => {
 
       const options = {
         temperature: 0.7,
-        maxTokens: 1000,
-        promptions: { focusArea: 'clarity' }
+        maxTokens: 1000
       }
 
       await orchestrator.executeAgent('test-agent', documentState, options)

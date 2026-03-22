@@ -28,13 +28,11 @@ export {
 export { DocumentState } from '../services/agents/documentState'
 
 // Initialize and register all agents
-import {
-  brainstormAgentContract,
-  draftAgentContract,
-  revisionAgentContract,
-  editorAgentContract,
-  argumentStrengthenerAgentContract
-} from './index'
+import { brainstormAgentContract } from './brainstormAgent'
+import { draftAgentContract } from './draftAgent'
+import { revisionAgentContract } from './revisionAgent'
+import { editorAgentContract } from './editorAgent'
+import { argumentStrengthenerAgentContract } from './argumentStrengthenerAgent'
 import { registerAgent } from '../services/agents/agentRegistry'
 
 /**
@@ -46,6 +44,4 @@ export function initializeAgentSystem() {
   registerAgent(revisionAgentContract)
   registerAgent(editorAgentContract)
   registerAgent(argumentStrengthenerAgentContract)
-
-  console.log('[AgentSystem] All agents registered')
 }

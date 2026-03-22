@@ -161,7 +161,6 @@ export class Orchestrator {
 
         // Abort previous step's stream before starting next
         if (this.currentAbort) {
-          console.log(`[Orchestrator] Aborting previous step's stream before starting step ${i}`)
           this.currentAbort()
           this.currentAbort = null
         }
@@ -211,7 +210,6 @@ export class Orchestrator {
     } catch (error) {
       // Abort streaming request if active
       if (this.currentAbort) {
-        console.log('[Orchestrator] Aborting stream due to pipeline error')
         this.currentAbort()
       }
 
@@ -229,7 +227,6 @@ export class Orchestrator {
   async executeAgent(agentId, documentState, options = {}) {
     // Abort previous agent's stream before starting new one
     if (this.currentAbort) {
-      console.log('[Orchestrator] Aborting previous agent stream before starting new agent')
       this.currentAbort()
       this.currentAbort = null
     }
@@ -262,7 +259,6 @@ export class Orchestrator {
   cancelCurrentExecution() {
     // Abort streaming request if active
     if (this.currentAbort) {
-      console.log('[Orchestrator] Aborting current streaming request')
       this.currentAbort()
       this.currentAbort = null
     }

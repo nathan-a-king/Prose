@@ -40,8 +40,7 @@ export const argumentStrengthenerAgentContract = {
  */
 async function executeArgumentStrengthenerAgent(documentState, options = {}) {
   const {
-    section = '',
-    promptions = null
+    section = ''
   } = options
 
   const content = documentState.getContent()
@@ -56,21 +55,6 @@ async function executeArgumentStrengthenerAgent(documentState, options = {}) {
 
   // Build system prompt
   let systemPrompt = buildSystemPrompt()
-
-  // Append promptions if available - CRITICAL: These override default behavior
-  if (promptions && !promptions.isEmpty()) {
-    const formatted = promptions.prettyPrintAsConversation()
-    systemPrompt += `\n\n## CRITICAL: User-Configured Preferences
-The user has explicitly configured the following preferences for this agent run.
-You MUST strictly adhere to these settings. They override any default instructions above.
-
-${formatted.question}
-
-## User's Selected Configuration:
-${formatted.answer}
-
-IMPORTANT: Only perform the specific actions and corrections specified in the user's configuration above. Do not expand beyond these explicit instructions.`
-  }
 
   // Build user prompt
   const userPrompt = buildUserPrompt({

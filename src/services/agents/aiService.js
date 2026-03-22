@@ -77,8 +77,6 @@ export async function makeCompletion(options) {
   }
 
   try {
-    console.log('[AI Service] Making completion request...', { model, temperature, maxTokens })
-
     const response = await fetch('/api/ai/completion', {
       method: 'POST',
       headers: {
@@ -87,8 +85,6 @@ export async function makeCompletion(options) {
       },
       body: JSON.stringify(requestBody)
     })
-
-    console.log('[AI Service] Response status:', response.status)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -106,8 +102,6 @@ export async function makeCompletion(options) {
 
     const data = await response.json()
     const content = data.choices[0].message.content
-
-    console.log('[AI Service] Completion successful, content length:', content?.length || 0)
 
     // Parse JSON if requested
     if (responseFormat === 'json') {
@@ -156,7 +150,6 @@ export async function makeStreamingCompletion(options, onChunk) {
 
   // Abort function to return to caller
   const abort = () => {
-    console.log('[AI Service] Aborting streaming request...')
     isAborted = true
 
     // Cancel reader if it exists
@@ -171,8 +164,6 @@ export async function makeStreamingCompletion(options, onChunk) {
   }
 
   try {
-    console.log('[AI Service] Making streaming completion request...', { model, temperature, maxTokens })
-
     const response = await fetch('/api/ai/completion/stream', {
       method: 'POST',
       headers: {
@@ -187,8 +178,6 @@ export async function makeStreamingCompletion(options, onChunk) {
       }),
       signal: abortController.signal
     })
-
-    console.log('[AI Service] Streaming response status:', response.status)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -211,10 +200,7 @@ export async function makeStreamingCompletion(options, onChunk) {
     try {
       while (true) {
         // Check if aborted before reading
-        if (isAborted) {
-          console.log('[AI Service] Stream aborted by caller')
-          break
-        }
+        if (isAborted) break
 
         const { done, value } = await reader.read()
         if (done) break
@@ -251,7 +237,6 @@ export async function makeStreamingCompletion(options, onChunk) {
       if (reader) {
         try {
           await reader.cancel()
-          console.log('[AI Service] Reader closed successfully')
         } catch (err) {
           console.warn('[AI Service] Error closing reader:', err)
         }
@@ -262,7 +247,6 @@ export async function makeStreamingCompletion(options, onChunk) {
   } catch (error) {
     // Handle abort gracefully - don't throw on user-initiated abort
     if (error.name === 'AbortError') {
-      console.log('[AI Service] Streaming request aborted')
       return abort
     }
 
