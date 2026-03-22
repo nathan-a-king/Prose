@@ -619,8 +619,9 @@ function HomePage() {
     <div className="min-h-screen bg-gray-100 dark:bg-neutral-800">
       {/* Top Bar */}
       <div className="fixed top-0 left-0 right-0 z-30 bg-white/50 dark:bg-neutral-900/50 backdrop-blur-sm border-b border-gray-200/30 dark:border-neutral-700/30 draggable">
-        {/* Main header content - single row layout */}
-        <div className="px-6 py-4 flex items-center justify-between">
+        {/* Main header content - three column layout */}
+        <div className="px-6 py-4 grid grid-cols-3 items-center">
+          {/* Left section */}
           <div className="flex items-center gap-4 mac-window-padding">
             {/* Recent Files sidebar toggle */}
             <button
@@ -641,19 +642,23 @@ function HomePage() {
             </button>
             <img src="/images/prose.png" alt="Prose - Minimal Markdown Editor" className="h-10 w-auto dark:invert" />
           </div>
-          <div className="flex items-center gap-4">
-          {/* Current file indicator */}
-          {currentFilePath && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 max-w-[200px]">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="truncate" title={currentFilePath}>
-                {fileSystemApi.getFileName(currentFilePath)}
-              </span>
-            </div>
-          )}
 
+          {/* Center section - filename */}
+          <div className="flex justify-center">
+            {currentFilePath && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="truncate" title={currentFilePath}>
+                  {fileSystemApi.getFileName(currentFilePath)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Right section - controls */}
+          <div className="flex items-center gap-4 justify-end">
           {/* Auto-save indicator */}
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 min-w-[80px]">
             {saveStatus === 'saving' && (
@@ -686,30 +691,6 @@ function HomePage() {
             </div>
           )}
 
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-gray-100 dark:bg-neutral-700 rounded-lg p-1">
-            <button
-              onClick={() => handleViewModeChange('edit')}
-              className={`px-4 py-1.5 text-sm font-normal rounded-md transition-colors ${
-                viewMode === 'edit'
-                  ? 'bg-white dark:bg-neutral-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-              }`}
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => handleViewModeChange('preview')}
-              className={`px-4 py-1.5 text-sm font-normal rounded-md transition-colors ${
-                viewMode === 'preview'
-                  ? 'bg-white dark:bg-neutral-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-              }`}
-            >
-              Preview
-            </button>
-          </div>
-          
           {/* Dark mode toggle */}
           <button
             onClick={toggleTheme}
