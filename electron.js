@@ -165,7 +165,7 @@ function startServer() {
         ...process.env, 
         NODE_ENV: 'production',
         USER_DATA_PATH: userDataPath,
-        PATH: process.env.PATH + ':/usr/local/bin:/opt/homebrew/bin:' + process.env.HOME + '/.nvm/versions/node/v22.17.0/bin'
+        PATH: process.env.PATH + ':' + path.dirname(nodeBinary) + ':/usr/local/bin:/opt/homebrew/bin'
       }
     });
 
@@ -213,7 +213,7 @@ function startServer() {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
-    height: 1960,
+    height: 800,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -421,6 +421,37 @@ function createMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+// Validate file paths for direct-access IPC handlers to prevent path traversal
+function validateFilePath(filePath) {
+  if (typeof filePath !== 'string' || filePath.length === 0) {
+    throw new Error('Invalid file path');
+  }
+
+  const resolved = path.resolve(filePath);
+  const homeDir = app.getPath('home');
+  const documentsDir = app.getPath('documents');
+  const desktopDir = app.getPath('desktop');
+  const downloadsDir = app.getPath('downloads');
+  const userDataDir = app.getPath('userData');
+
+  const allowedPrefixes = [homeDir, documentsDir, desktopDir, downloadsDir, userDataDir];
+
+  // Block known sensitive system directories
+  const blockedPrefixes = ['/etc', '/System', '/usr', '/bin', '/sbin', '/var', '/private/etc'];
+  for (const blocked of blockedPrefixes) {
+    if (resolved.startsWith(blocked)) {
+      throw new Error('Access to this path is not allowed');
+    }
+  }
+
+  // Must be under user's home directory
+  if (!allowedPrefixes.some(prefix => resolved.startsWith(prefix))) {
+    throw new Error('File path must be within the user home directory');
+  }
+
+  return resolved;
+}
+
 // IPC Handlers for file system operations
 ipcMain.handle('file:open', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -447,7 +478,8 @@ ipcMain.handle('file:open', async () => {
 
 ipcMain.handle('file:read', async (event, filePath) => {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const safePath = validateFilePath(filePath);
+    const content = fs.readFileSync(safePath, 'utf-8');
     return content;
   } catch (error) {
     console.error('Error reading file:', error);
@@ -457,8 +489,9 @@ ipcMain.handle('file:read', async (event, filePath) => {
 
 ipcMain.handle('file:save', async (event, filePath, content) => {
   try {
-    fs.writeFileSync(filePath, content, 'utf-8');
-    return { success: true, filePath };
+    const safePath = validateFilePath(filePath);
+    fs.writeFileSync(safePath, content, 'utf-8');
+    return { success: true, filePath: safePath };
   } catch (error) {
     console.error('Error saving file:', error);
     throw new Error(`Failed to save file: ${error.message}`);
@@ -490,10 +523,11 @@ ipcMain.handle('file:saveAs', async (event, content, defaultName) => {
 
 ipcMain.handle('file:getInfo', async (event, filePath) => {
   try {
-    const stats = fs.statSync(filePath);
+    const safePath = validateFilePath(filePath);
+    const stats = fs.statSync(safePath);
     return {
-      name: path.basename(filePath),
-      path: filePath,
+      name: path.basename(safePath),
+      path: safePath,
       size: stats.size,
       modifiedAt: stats.mtime
     };
@@ -504,7 +538,12 @@ ipcMain.handle('file:getInfo', async (event, filePath) => {
 });
 
 ipcMain.handle('file:exists', async (event, filePath) => {
-  return fs.existsSync(filePath);
+  try {
+    const safePath = validateFilePath(filePath);
+    return fs.existsSync(safePath);
+  } catch (error) {
+    return false;
+  }
 });
 
 // Validate storage key to prevent path traversal (e.g. ../../etc/foo)

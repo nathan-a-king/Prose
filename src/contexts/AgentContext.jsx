@@ -36,8 +36,13 @@ function documentReducer(state, action) {
       return approveProposalFn(state, action.proposalId)
     case 'REJECT_PROPOSAL':
       return rejectProposalFn(state, action.proposalId, action.reason)
-    case 'SYNC':
-      return action.state
+    case 'MERGE_AGENT_RESULTS': {
+      return {
+        ...state,
+        changeProposals: [...state.changeProposals, ...action.newProposals],
+        annotations: [...state.annotations, ...action.newAnnotations]
+      }
+    }
     default:
       return state
   }
@@ -59,7 +64,7 @@ export function AgentProvider({ children }) {
   // Keep wrapper in sync when reducer state changes from non-agent actions
   useEffect(() => {
     if (docState && wrapperRef.current) {
-      wrapperRef.current._state = docState
+      wrapperRef.current.setState(docState)
     }
   }, [docState])
 
@@ -96,8 +101,16 @@ export function AgentProvider({ children }) {
 
     try {
       const wrapper = wrapperRef.current
+      const existingProposalIds = new Set(docState.changeProposals.map(p => p.id))
+      const existingAnnotationIds = new Set(docState.annotations.map(a => a.id))
+
       const result = await orchestrator.executeAgent(agentId, wrapper, options)
-      dispatch({ type: 'SYNC', state: wrapper._state })
+
+      const wrapperState = wrapper.getState()
+      const newProposals = wrapperState.changeProposals.filter(p => !existingProposalIds.has(p.id))
+      const newAnnotations = wrapperState.annotations.filter(a => !existingAnnotationIds.has(a.id))
+      dispatch({ type: 'MERGE_AGENT_RESULTS', newProposals, newAnnotations })
+
       setExecutionProgress({ type: 'agent', agentId, status: 'completed', result })
       return result
     } catch (error) {
@@ -119,13 +132,23 @@ export function AgentProvider({ children }) {
 
     try {
       const wrapper = wrapperRef.current
+      const existingProposalIds = new Set(docState.changeProposals.map(p => p.id))
+      const existingAnnotationIds = new Set(docState.annotations.map(a => a.id))
+
       const result = await orchestrator.executePipeline(pipelineId, wrapper, {
         onStepStart: (stepIndex, step) => {
           setCurrentStep({ stepIndex, step, status: 'running' })
         },
-        onStepComplete: (stepIndex, step, result) => {
-          setCurrentStep({ stepIndex, step, status: 'completed', result })
-          dispatch({ type: 'SYNC', state: wrapper._state })
+        onStepComplete: (stepIndex, step, stepResult) => {
+          setCurrentStep({ stepIndex, step, status: 'completed', result: stepResult })
+          // Merge intermediate results
+          const wrapperState = wrapper.getState()
+          const newProposals = wrapperState.changeProposals.filter(p => !existingProposalIds.has(p.id))
+          const newAnnotations = wrapperState.annotations.filter(a => !existingAnnotationIds.has(a.id))
+          dispatch({ type: 'MERGE_AGENT_RESULTS', newProposals, newAnnotations })
+          // Track newly merged IDs for subsequent steps
+          newProposals.forEach(p => existingProposalIds.add(p.id))
+          newAnnotations.forEach(a => existingAnnotationIds.add(a.id))
         },
         onProgress: (stepIndex, data) => {
           setExecutionProgress({
@@ -139,7 +162,14 @@ export function AgentProvider({ children }) {
         ...options
       })
 
-      dispatch({ type: 'SYNC', state: wrapper._state })
+      // Final merge for any proposals added after last onStepComplete
+      const wrapperState = wrapper.getState()
+      const finalNewProposals = wrapperState.changeProposals.filter(p => !existingProposalIds.has(p.id))
+      const finalNewAnnotations = wrapperState.annotations.filter(a => !existingAnnotationIds.has(a.id))
+      if (finalNewProposals.length > 0 || finalNewAnnotations.length > 0) {
+        dispatch({ type: 'MERGE_AGENT_RESULTS', newProposals: finalNewProposals, newAnnotations: finalNewAnnotations })
+      }
+
       setExecutionProgress({ type: 'pipeline', pipelineId, status: 'completed', result })
       return result
     } catch (error) {
@@ -155,8 +185,8 @@ export function AgentProvider({ children }) {
   const approveProposal = useCallback((proposalId) => {
     if (!docState) return
     try {
+      dispatch({ type: 'APPROVE_PROPOSAL', proposalId })
       const newState = approveProposalFn(docState, proposalId)
-      dispatch({ type: 'SYNC', state: newState })
       return newState.content
     } catch (error) {
       console.error('Failed to approve proposal:', error)
@@ -177,9 +207,11 @@ export function AgentProvider({ children }) {
   const approveAllFromAgent = useCallback((agentId) => {
     if (!docState) return
     try {
-      const { newState, results } = approveAllFromAgentFn(docState, agentId)
-      dispatch({ type: 'SYNC', state: newState })
-      return results
+      const pending = getChangeProposals(docState, { agentId, status: 'pending' })
+      for (const proposal of pending) {
+        dispatch({ type: 'APPROVE_PROPOSAL', proposalId: proposal.id })
+      }
+      return pending.map(p => ({ proposalId: p.id, success: true }))
     } catch (error) {
       console.error('Failed to approve all proposals:', error)
       throw error

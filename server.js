@@ -14,11 +14,59 @@ const PORT = process.env.PORT || 8080
 const buildPath = path.join(__dirname, 'build')
 
 // Middleware
-app.use(express.json())
+app.use(express.json({ limit: '1mb' }))
+
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('X-XSS-Protection', '1; mode=block')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  next()
+})
+
+// CORS — only allow requests from the local app
+app.use((req, res, next) => {
+  const origin = req.headers.origin
+  const allowedOrigins = [
+    `http://localhost:${PORT}`,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    `http://127.0.0.1:${PORT}`
+  ]
+  if (origin && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
+  next()
+})
+
+// Simple in-memory rate limiter for AI proxy endpoints
+const rateLimitMap = new Map()
+const RATE_LIMIT_WINDOW_MS = 60 * 1000
+const RATE_LIMIT_MAX = 30
+
+function rateLimit(req, res, next) {
+  const key = req.ip || 'unknown'
+  const now = Date.now()
+  const entry = rateLimitMap.get(key)
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(key, { windowStart: now, count: 1 })
+    return next()
+  }
+
+  entry.count++
+  if (entry.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Too many requests, please try again later' })
+  }
+
+  next()
+}
+
 app.use(express.static(buildPath))
 
 // AI Proxy Routes - Forward requests to OpenAI API
-app.post('/api/ai/completion', async (req, res) => {
+app.post('/api/ai/completion', rateLimit, async (req, res) => {
   try {
     const apiKey = req.headers['x-api-key']
     if (!apiKey) {
@@ -60,7 +108,7 @@ app.post('/api/ai/completion', async (req, res) => {
   }
 })
 
-app.post('/api/ai/completion/stream', async (req, res) => {
+app.post('/api/ai/completion/stream', rateLimit, async (req, res) => {
   try {
     const apiKey = req.headers['x-api-key']
     if (!apiKey) {
@@ -127,12 +175,12 @@ app.put('/api/documents/order', (req, res) => {
     if (!Array.isArray(documentOrders)) {
       return res.status(400).json({ error: 'Document orders must be an array' })
     }
-    
+
     const updated = documentDb.updateOrder(documentOrders)
     if (!updated) {
       return res.status(500).json({ error: 'Failed to update document order' })
     }
-    
+
     res.json({ success: true })
   } catch (error) {
     console.error('Error updating document order:', error)
@@ -159,7 +207,7 @@ app.post('/api/documents', (req, res) => {
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required' })
     }
-    
+
     const documentId = documentDb.create(title, content, preview || '', titleManuallySet || false)
     const document = documentDb.getById(documentId)
     res.status(201).json(document)
@@ -175,12 +223,12 @@ app.put('/api/documents/:id', (req, res) => {
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required' })
     }
-    
+
     const updated = documentDb.update(req.params.id, title, content, preview || '', titleManuallySet || false)
     if (!updated) {
       return res.status(404).json({ error: 'Document not found' })
     }
-    
+
     const document = documentDb.getById(req.params.id)
     res.json(document)
   } catch (error) {
@@ -207,6 +255,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(buildPath, 'index.html'))
 })
 
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`Server running on port ${PORT}`)
 })
