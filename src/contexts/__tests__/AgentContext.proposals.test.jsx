@@ -75,13 +75,13 @@ describe.skip('AgentContext - Proposals', () => {
       expect(screen.getByTestId('content')).toHaveTextContent('Updated content')
     })
 
-    test('increments updateCounter', () => {
-      function CounterComponent() {
+    test('updates documentContent after approval', () => {
+      function ContentComponent() {
         const {
           initializeDocument,
           documentState,
           approveProposal,
-          updateCounter
+          documentContent
         } = useAgents()
 
         const addAndApproveProposal = () => {
@@ -102,7 +102,7 @@ describe.skip('AgentContext - Proposals', () => {
 
         return (
           <div>
-            <span data-testid="counter">{updateCounter}</span>
+            <span data-testid="content">{documentContent || 'none'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
             <button onClick={addAndApproveProposal}>Approve</button>
           </div>
@@ -111,17 +111,17 @@ describe.skip('AgentContext - Proposals', () => {
 
       render(
         <AgentProvider>
-          <CounterComponent />
+          <ContentComponent />
         </AgentProvider>
       )
 
-      const initialCounter = screen.getByTestId('counter').textContent
+      expect(screen.getByTestId('content')).toHaveTextContent('none')
 
       screen.getByText('Initialize').click()
-      screen.getByText('Approve').click()
+      expect(screen.getByTestId('content')).toHaveTextContent('Test')
 
-      const newCounter = screen.getByTestId('counter').textContent
-      expect(parseInt(newCounter)).toBeGreaterThan(parseInt(initialCounter))
+      screen.getByText('Approve').click()
+      expect(screen.getByTestId('content')).toHaveTextContent('New')
     })
 
     test('does nothing when documentState is null', () => {
@@ -230,13 +230,13 @@ describe.skip('AgentContext - Proposals', () => {
       expect(screen.getByTestId('rejected')).toHaveTextContent('1')
     })
 
-    test('increments updateCounter', () => {
-      function CounterComponent() {
+    test('updates changeProposals after rejection', () => {
+      function RejectComponent() {
         const {
           initializeDocument,
           documentState,
           rejectProposal,
-          updateCounter
+          changeProposals
         } = useAgents()
 
         const addAndRejectProposal = () => {
@@ -255,9 +255,11 @@ describe.skip('AgentContext - Proposals', () => {
           }
         }
 
+        const rejected = changeProposals.filter(p => p.status === 'rejected')
+
         return (
           <div>
-            <span data-testid="counter">{updateCounter}</span>
+            <span data-testid="rejected">{rejected.length}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
             <button onClick={addAndRejectProposal}>Reject</button>
           </div>
@@ -266,17 +268,14 @@ describe.skip('AgentContext - Proposals', () => {
 
       render(
         <AgentProvider>
-          <CounterComponent />
+          <RejectComponent />
         </AgentProvider>
       )
-
-      const initialCounter = screen.getByTestId('counter').textContent
 
       screen.getByText('Initialize').click()
       screen.getByText('Reject').click()
 
-      const newCounter = screen.getByTestId('counter').textContent
-      expect(parseInt(newCounter)).toBeGreaterThan(parseInt(initialCounter))
+      expect(screen.getByTestId('rejected')).toHaveTextContent('1')
     })
 
     test('does nothing when documentState is null', () => {

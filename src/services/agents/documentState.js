@@ -1,375 +1,419 @@
 /**
- * Document State Manager
+ * Document State — Immutable Data Pattern
  *
+ * Plain state objects + pure functions that return new state.
  * Maintains single source of truth for document content and metadata.
- * Tracks changes, versions, and agent interactions.
+ *
+ * The DocumentState class at the bottom is a backward-compatible wrapper
+ * for consumers that haven't migrated to the pure function API yet.
  */
 
-export class DocumentState {
-  constructor(initialContent = '', metadata = {}) {
-    this.content = initialContent
-    this.metadata = {
+const MAX_VERSIONS = 50
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+export function countWords(text) {
+  return text.trim().split(/\s+/).filter(w => w.length > 0).length
+}
+
+export function computeDiff(oldText, newText) {
+  return {
+    added: newText.length - oldText.length,
+    type: newText.length > oldText.length ? 'addition' : 'deletion'
+  }
+}
+
+// ─── Factory ─────────────────────────────────────────────────────────────────
+
+export function createDocumentState(content = '', metadata = {}) {
+  return {
+    content,
+    metadata: {
       title: metadata.title || 'Untitled Document',
       createdAt: metadata.createdAt || new Date(),
       updatedAt: new Date(),
-      wordCount: this.countWords(initialContent),
+      wordCount: countWords(content),
       ...metadata
-    }
-    this.versions = [{
-      content: initialContent,
+    },
+    versions: [{
+      content,
       timestamp: new Date(),
       source: 'initial'
-    }]
-    this.changeProposals = []
-    this.appliedChanges = []
-    this.annotations = [] // Agent comments and analysis
+    }],
+    changeProposals: [],
+    appliedChanges: [],
+    annotations: []
+  }
+}
+
+// ─── Pure State Transitions ──────────────────────────────────────────────────
+
+function capVersions(versions) {
+  if (versions.length <= MAX_VERSIONS) return versions
+  // Keep the initial version (index 0) and the most recent entries
+  return [versions[0], ...versions.slice(versions.length - (MAX_VERSIONS - 1))]
+}
+
+export function updateContent(state, newContent, source = 'user') {
+  const newVersions = capVersions([...state.versions, {
+    content: newContent,
+    timestamp: new Date(),
+    source,
+    diff: computeDiff(state.content, newContent)
+  }])
+
+  return {
+    ...state,
+    content: newContent,
+    metadata: {
+      ...state.metadata,
+      updatedAt: new Date(),
+      wordCount: countWords(newContent)
+    },
+    versions: newVersions
+  }
+}
+
+export function addChangeProposal(state, proposal) {
+  const proposalWithId = {
+    ...proposal,
+    id: `proposal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    status: 'pending',
+    createdAt: new Date()
   }
 
-  /**
-   * Get current content
-   */
-  getContent() {
-    return this.content
+  return {
+    newState: {
+      ...state,
+      changeProposals: [...state.changeProposals, proposalWithId]
+    },
+    proposalId: proposalWithId.id
   }
+}
 
-  /**
-   * Get metadata
-   */
-  getMetadata() {
-    return { ...this.metadata }
-  }
+export function applyChange(content, proposal) {
+  const { type, location, originalText, proposedText } = proposal
 
-  /**
-   * Update content and create version
-   */
-  updateContent(newContent, source = 'user') {
-    const oldContent = this.content
-    this.content = newContent
-    this.metadata.updatedAt = new Date()
-    this.metadata.wordCount = this.countWords(newContent)
-
-    // Create version history entry
-    this.versions.push({
-      content: newContent,
-      timestamp: new Date(),
-      source,
-      diff: this.computeDiff(oldContent, newContent)
-    })
-
-    return this.versions.length - 1 // Return version ID
-  }
-
-  /**
-   * Add a change proposal from an agent
-   */
-  addChangeProposal(proposal) {
-    const proposalWithId = {
-      ...proposal,
-      id: `proposal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      status: 'pending',
-      createdAt: new Date()
-    }
-
-    this.changeProposals.push(proposalWithId)
-    return proposalWithId.id
-  }
-
-  /**
-   * Get all change proposals
-   */
-  getChangeProposals(filter = {}) {
-    let proposals = [...this.changeProposals]
-
-    if (filter.status) {
-      proposals = proposals.filter(p => p.status === filter.status)
-    }
-
-    if (filter.agentId) {
-      proposals = proposals.filter(p => p.agentId === filter.agentId)
-    }
-
-    if (filter.category) {
-      proposals = proposals.filter(p => p.category === filter.category)
-    }
-
-    if (filter.priority) {
-      proposals = proposals.filter(p => p.priority === filter.priority)
-    }
-
-    return proposals
-  }
-
-  /**
-   * Get pending change proposals
-   */
-  getPendingProposals() {
-    return this.getChangeProposals({ status: 'pending' })
-  }
-
-  /**
-   * Approve a change proposal and apply it
-   */
-  approveProposal(proposalId) {
-    const proposal = this.changeProposals.find(p => p.id === proposalId)
-    if (!proposal) {
-      throw new Error(`Proposal ${proposalId} not found`)
-    }
-
-    if (proposal.status !== 'pending') {
-      throw new Error(`Proposal ${proposalId} is not pending`)
-    }
-
-    // Store original content to calculate actual change position
-    const contentBefore = this.content
-
-    // Apply the change
-    const newContent = this.applyChange(proposal)
-    this.updateContent(newContent, `agent:${proposal.agentId}`)
-
-    // Update proposal status
-    proposal.status = 'approved'
-    proposal.appliedAt = new Date()
-
-    // Update all pending proposals to remove the changed text from their originalText
-    // This prevents the same text from being matched multiple times
-    this.updatePendingProposalsAfterChange(contentBefore, newContent, proposal)
-
-    // Track applied change
-    this.appliedChanges.push({
-      proposalId,
-      timestamp: new Date()
-    })
-
-    return newContent
-  }
-
-  /**
-   * Reject a change proposal
-   */
-  rejectProposal(proposalId, reason = '') {
-    const proposal = this.changeProposals.find(p => p.id === proposalId)
-    if (!proposal) {
-      throw new Error(`Proposal ${proposalId} not found`)
-    }
-
-    proposal.status = 'rejected'
-    proposal.rejectedAt = new Date()
-    proposal.rejectionReason = reason
-
-    return proposal
-  }
-
-  /**
-   * Approve all proposals from an agent run
-   */
-  approveAllFromAgent(agentId) {
-    const proposals = this.getChangeProposals({
-      agentId,
-      status: 'pending'
-    })
-
-    const results = []
-    for (const proposal of proposals) {
-      try {
-        this.approveProposal(proposal.id)
-        results.push({ proposalId: proposal.id, success: true })
-      } catch (error) {
-        results.push({
-          proposalId: proposal.id,
-          success: false,
-          error: error.message
-        })
-      }
-    }
-
-    return results
-  }
-
-  /**
-   * Apply a change to the document content
-   */
-  applyChange(proposal) {
-    const { type, location, originalText, proposedText } = proposal
-    const content = this.content
-
-    switch (type) {
-      case 'replace':
-        // For replace operations, use text matching if originalText is provided
-        // This is more reliable than AI-provided character positions
-        if (originalText && originalText.trim()) {
-          // Find the text in the document
-          const index = content.indexOf(originalText)
-          if (index !== -1) {
-            // Found exact match - use it instead of positions
-            return (
-              content.substring(0, index) +
-              proposedText +
-              content.substring(index + originalText.length)
-            )
-          } else {
-            // Fallback to position-based if exact match not found
-            console.warn('Could not find exact match for originalText, using positions:', originalText.substring(0, 50))
-            return (
-              content.substring(0, location.start) +
-              proposedText +
-              content.substring(location.end)
-            )
-          }
+  switch (type) {
+    case 'replace':
+      if (originalText && originalText.trim()) {
+        const index = content.indexOf(originalText)
+        if (index !== -1) {
+          return (
+            content.substring(0, index) +
+            proposedText +
+            content.substring(index + originalText.length)
+          )
         } else {
-          // No originalText provided, use position-based replacement
+          console.warn('Could not find exact match for originalText, using positions:', originalText.substring(0, 50))
           return (
             content.substring(0, location.start) +
             proposedText +
             content.substring(location.end)
           )
         }
-
-      case 'insert':
-        // Insert text at location
+      } else {
         return (
           content.substring(0, location.start) +
           proposedText +
-          content.substring(location.start)
-        )
-
-      case 'delete':
-        // Delete text at location
-        return (
-          content.substring(0, location.start) +
           content.substring(location.end)
         )
-
-      case 'restructure':
-        // More complex restructuring
-        return proposedText // Assumes proposedText is full restructured content
-
-      case 'comment':
-        // Comments don't change content
-        return content
-
-      default:
-        throw new Error(`Unknown change type: ${type}`)
-    }
-  }
-
-  /**
-   * Add annotation (agent comment or analysis)
-   */
-  addAnnotation(annotation) {
-    const annotationWithId = {
-      ...annotation,
-      id: `annotation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date()
-    }
-
-    this.annotations.push(annotationWithId)
-    return annotationWithId.id
-  }
-
-  /**
-   * Get annotations
-   */
-  getAnnotations(filter = {}) {
-    let annotations = [...this.annotations]
-
-    if (filter.agentId) {
-      annotations = annotations.filter(a => a.agentId === filter.agentId)
-    }
-
-    if (filter.category) {
-      annotations = annotations.filter(a => a.category === filter.category)
-    }
-
-    return annotations
-  }
-
-  /**
-   * Get version history
-   */
-  getVersionHistory() {
-    return [...this.versions]
-  }
-
-  /**
-   * Revert to a previous version
-   */
-  revertToVersion(versionIndex) {
-    if (versionIndex < 0 || versionIndex >= this.versions.length) {
-      throw new Error(`Invalid version index: ${versionIndex}`)
-    }
-
-    const version = this.versions[versionIndex]
-    this.updateContent(version.content, 'revert')
-
-    return this.content
-  }
-
-  /**
-   * Update pending proposals after a change is applied
-   * Since we use text matching, we need to ensure pending proposals
-   * still match the updated document
-   */
-  updatePendingProposalsAfterChange(contentBefore, contentAfter, appliedProposal) {
-    const { originalText, proposedText } = appliedProposal
-
-    // For each pending proposal, check if its originalText still exists in the new content
-    this.changeProposals.forEach(proposal => {
-      if (proposal.status === 'pending' && proposal.originalText) {
-        // Check if the original text is still in the document
-        const stillExists = contentAfter.indexOf(proposal.originalText) !== -1
-
-        if (!stillExists) {
-          // The text this proposal refers to has been modified or removed
-          // Mark it with a warning but keep it pending
-          proposal.metadata = proposal.metadata || {}
-          proposal.metadata.mayBeInvalid = true
-          console.warn(`Proposal ${proposal.id} may be invalid - originalText no longer found in document`)
-        }
       }
-    })
+
+    case 'insert':
+      return (
+        content.substring(0, location.start) +
+        proposedText +
+        content.substring(location.start)
+      )
+
+    case 'delete':
+      return (
+        content.substring(0, location.start) +
+        content.substring(location.end)
+      )
+
+    case 'restructure':
+      return proposedText
+
+    case 'comment':
+      return content
+
+    default:
+      throw new Error(`Unknown change type: ${type}`)
+  }
+}
+
+function markInvalidatedProposals(proposals, contentAfter, appliedProposalId) {
+  return proposals.map(proposal => {
+    if (proposal.id === appliedProposalId) return proposal
+    if (proposal.status !== 'pending' || !proposal.originalText) return proposal
+
+    const stillExists = contentAfter.indexOf(proposal.originalText) !== -1
+    if (stillExists) return proposal
+
+    return {
+      ...proposal,
+      metadata: {
+        ...proposal.metadata,
+        mayBeInvalid: true
+      }
+    }
+  })
+}
+
+export function approveProposal(state, proposalId) {
+  const proposal = state.changeProposals.find(p => p.id === proposalId)
+  if (!proposal) {
+    throw new Error(`Proposal ${proposalId} not found`)
+  }
+  if (proposal.status !== 'pending') {
+    throw new Error(`Proposal ${proposalId} is not pending`)
   }
 
-  /**
-   * Count words in text
-   */
+  const newContent = applyChange(state.content, proposal)
+  const contentUpdated = updateContent(state, newContent, `agent:${proposal.agentId}`)
+
+  const updatedProposals = markInvalidatedProposals(
+    contentUpdated.changeProposals,
+    newContent,
+    proposalId
+  ).map(p =>
+    p.id === proposalId
+      ? { ...p, status: 'approved', appliedAt: new Date() }
+      : p
+  )
+
+  return {
+    ...contentUpdated,
+    changeProposals: updatedProposals,
+    appliedChanges: [...contentUpdated.appliedChanges, {
+      proposalId,
+      timestamp: new Date()
+    }]
+  }
+}
+
+export function rejectProposal(state, proposalId, reason = '') {
+  const proposal = state.changeProposals.find(p => p.id === proposalId)
+  if (!proposal) {
+    throw new Error(`Proposal ${proposalId} not found`)
+  }
+
+  return {
+    ...state,
+    changeProposals: state.changeProposals.map(p =>
+      p.id === proposalId
+        ? { ...p, status: 'rejected', rejectedAt: new Date(), rejectionReason: reason }
+        : p
+    )
+  }
+}
+
+export function approveAllFromAgent(state, agentId) {
+  const pending = getChangeProposals(state, { agentId, status: 'pending' })
+
+  let currentState = state
+  const results = []
+
+  for (const proposal of pending) {
+    try {
+      currentState = approveProposal(currentState, proposal.id)
+      results.push({ proposalId: proposal.id, success: true })
+    } catch (error) {
+      results.push({ proposalId: proposal.id, success: false, error: error.message })
+    }
+  }
+
+  return { newState: currentState, results }
+}
+
+export function addAnnotation(state, annotation) {
+  const annotationWithId = {
+    ...annotation,
+    id: `annotation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    createdAt: new Date()
+  }
+
+  return {
+    newState: {
+      ...state,
+      annotations: [...state.annotations, annotationWithId]
+    },
+    annotationId: annotationWithId.id
+  }
+}
+
+export function revertToVersion(state, versionIndex) {
+  if (versionIndex < 0 || versionIndex >= state.versions.length) {
+    throw new Error(`Invalid version index: ${versionIndex}`)
+  }
+
+  const version = state.versions[versionIndex]
+  return updateContent(state, version.content, 'revert')
+}
+
+// ─── Pure Queries ────────────────────────────────────────────────────────────
+
+export function getChangeProposals(state, filter = {}) {
+  let proposals = state.changeProposals
+
+  if (filter.status) {
+    proposals = proposals.filter(p => p.status === filter.status)
+  }
+  if (filter.agentId) {
+    proposals = proposals.filter(p => p.agentId === filter.agentId)
+  }
+  if (filter.category) {
+    proposals = proposals.filter(p => p.category === filter.category)
+  }
+  if (filter.priority) {
+    proposals = proposals.filter(p => p.priority === filter.priority)
+  }
+
+  return proposals
+}
+
+export function getPendingProposals(state) {
+  return getChangeProposals(state, { status: 'pending' })
+}
+
+export function getAnnotations(state, filter = {}) {
+  let annotations = state.annotations
+
+  if (filter.agentId) {
+    annotations = annotations.filter(a => a.agentId === filter.agentId)
+  }
+  if (filter.category) {
+    annotations = annotations.filter(a => a.category === filter.category)
+  }
+
+  return annotations
+}
+
+// ─── Export / Import ─────────────────────────────────────────────────────────
+
+export function exportState(state) {
+  return {
+    content: state.content,
+    metadata: state.metadata,
+    versions: state.versions,
+    changeProposals: state.changeProposals,
+    appliedChanges: state.appliedChanges,
+    annotations: state.annotations
+  }
+}
+
+export function importState(data) {
+  return {
+    content: data.content,
+    metadata: data.metadata,
+    versions: data.versions || [],
+    changeProposals: data.changeProposals || [],
+    appliedChanges: data.appliedChanges || [],
+    annotations: data.annotations || []
+  }
+}
+
+// ─── Backward-Compatible Class Wrapper ───────────────────────────────────────
+// Delegates to pure functions above. Consumers should migrate to the pure
+// function API (Phase 2.2–2.3), after which this class can be removed.
+
+export class DocumentState {
+  constructor(initialContent = '', metadata = {}) {
+    this._state = createDocumentState(initialContent, metadata)
+  }
+
+  getContent() {
+    return this._state.content
+  }
+
+  getMetadata() {
+    return { ...this._state.metadata }
+  }
+
+  updateContent(newContent, source = 'user') {
+    this._state = updateContent(this._state, newContent, source)
+    return this._state.versions.length - 1
+  }
+
+  addChangeProposal(proposal) {
+    const { newState, proposalId } = addChangeProposal(this._state, proposal)
+    this._state = newState
+    return proposalId
+  }
+
+  getChangeProposals(filter = {}) {
+    return getChangeProposals(this._state, filter)
+  }
+
+  getPendingProposals() {
+    return getPendingProposals(this._state)
+  }
+
+  approveProposal(proposalId) {
+    this._state = approveProposal(this._state, proposalId)
+    return this._state.content
+  }
+
+  rejectProposal(proposalId, reason = '') {
+    this._state = rejectProposal(this._state, proposalId, reason)
+    const proposal = this._state.changeProposals.find(p => p.id === proposalId)
+    return proposal
+  }
+
+  approveAllFromAgent(agentId) {
+    const { newState, results } = approveAllFromAgent(this._state, agentId)
+    this._state = newState
+    return results
+  }
+
+  applyChange(proposal) {
+    return applyChange(this._state.content, proposal)
+  }
+
+  addAnnotation(annotation) {
+    const { newState, annotationId } = addAnnotation(this._state, annotation)
+    this._state = newState
+    return annotationId
+  }
+
+  getAnnotations(filter = {}) {
+    return getAnnotations(this._state, filter)
+  }
+
+  getVersionHistory() {
+    return [...this._state.versions]
+  }
+
+  revertToVersion(versionIndex) {
+    this._state = revertToVersion(this._state, versionIndex)
+    return this._state.content
+  }
+
+  updatePendingProposalsAfterChange() {
+    // Now handled internally by approveProposal
+  }
+
   countWords(text) {
-    return text.trim().split(/\s+/).filter(w => w.length > 0).length
+    return countWords(text)
   }
 
-  /**
-   * Compute simple diff between two texts
-   */
   computeDiff(oldText, newText) {
-    // Simple diff - in production, use a proper diff library
-    return {
-      added: newText.length - oldText.length,
-      type: newText.length > oldText.length ? 'addition' : 'deletion'
-    }
+    return computeDiff(oldText, newText)
   }
 
-  /**
-   * Export state for persistence
-   */
   export() {
-    return {
-      content: this.content,
-      metadata: this.metadata,
-      versions: this.versions,
-      changeProposals: this.changeProposals,
-      appliedChanges: this.appliedChanges,
-      annotations: this.annotations
-    }
+    return exportState(this._state)
   }
 
-  /**
-   * Import state from persistence
-   */
   static import(data) {
-    const state = new DocumentState(data.content, data.metadata)
-    state.versions = data.versions || []
-    state.changeProposals = data.changeProposals || []
-    state.appliedChanges = data.appliedChanges || []
-    state.annotations = data.annotations || []
+    const state = new DocumentState()
+    state._state = {
+      ...importState(data),
+      // Preserve content from import data
+      content: data.content
+    }
     return state
   }
 }
