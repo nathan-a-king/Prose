@@ -44,7 +44,7 @@ function limitRecentFiles(files, maxFiles) {
 
 function HomePage() {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { documentState, initializeDocument, updateDocumentContent, getPendingProposals, updateCounter, selectedAgent, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals, cancelExecution } = useAgents()
+  const { documentState, documentContent, initializeDocument, updateDocumentContent, getPendingProposals, selectedAgent, setSelectedAgent, executeAgent, isExecuting, executionProgress, changeProposals, cancelExecution } = useAgents()
   const [text, setText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentDocId, setCurrentDocId] = useState(null)
@@ -215,18 +215,12 @@ function HomePage() {
     textRef.current = text
   }, [text])
 
-  // Sync text with documentState when it changes from agent actions
+  // Sync text with documentState when content changes from agent actions
   useEffect(() => {
-    if (documentState && updateCounter > 0) {
-      const stateContent = documentState.getContent()
-      // Update text when proposals are approved (updateCounter changes)
-      // Only update if content actually changed to avoid overwriting user edits
-      // Use textRef.current to get latest value without triggering infinite loop
-      if (stateContent && stateContent !== textRef.current) {
-        setText(stateContent)
-      }
+    if (documentContent && documentContent !== textRef.current) {
+      setText(documentContent)
     }
-  }, [updateCounter, documentState])
+  }, [documentContent])
 
   const saveDocument = useCallback(async () => {
     if (!text.trim()) return

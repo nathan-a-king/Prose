@@ -1,18 +1,28 @@
 import { describe, test, expect, beforeEach } from 'vitest'
-import { DocumentState } from '../documentState'
+import {
+  createDocumentState,
+  addChangeProposal,
+  getChangeProposals,
+  getPendingProposals,
+  approveProposal,
+  rejectProposal,
+  approveAllFromAgent,
+  applyChange,
+  exportState
+} from '../documentState'
 
-describe('DocumentState - Proposal Management', () => {
-  let docState
+describe('DocumentState - Proposal Management (Pure Functions)', () => {
+  let state
 
   beforeEach(() => {
-    docState = new DocumentState('The quick brown fox jumps over the lazy dog', {
+    state = createDocumentState('The quick brown fox jumps over the lazy dog', {
       title: 'Test Document'
     })
   })
 
   describe('addChangeProposal', () => {
     test('adds proposal with unique ID', () => {
-      const proposalId = docState.addChangeProposal({
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -26,13 +36,28 @@ describe('DocumentState - Proposal Management', () => {
       expect(proposalId).toBeTruthy()
       expect(proposalId).toMatch(/^proposal-/)
 
-      const proposals = docState.getChangeProposals()
+      const proposals = getChangeProposals(newState)
       expect(proposals).toHaveLength(1)
       expect(proposals[0].id).toBe(proposalId)
     })
 
+    test('does not mutate original state', () => {
+      addChangeProposal(state, {
+        type: 'replace',
+        location: { start: 0, end: 3 },
+        originalText: 'The',
+        proposedText: 'A',
+        rationale: 'Test',
+        category: 'style',
+        priority: 'minor',
+        agentId: 'editor-agent'
+      })
+
+      expect(getChangeProposals(state)).toHaveLength(0)
+    })
+
     test('sets status to pending by default', () => {
-      const proposalId = docState.addChangeProposal({
+      const { newState } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 0, end: 3 },
         originalText: 'The',
@@ -43,13 +68,13 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      const proposals = docState.getChangeProposals()
+      const proposals = getChangeProposals(newState)
       expect(proposals[0].status).toBe('pending')
       expect(proposals[0].createdAt).toBeInstanceOf(Date)
     })
 
     test('generates unique IDs for multiple proposals', () => {
-      const id1 = docState.addChangeProposal({
+      const { newState: state1, proposalId: id1 } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 0, end: 3 },
         originalText: 'The',
@@ -60,7 +85,7 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'agent-1'
       })
 
-      const id2 = docState.addChangeProposal({
+      const { proposalId: id2 } = addChangeProposal(state1, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -76,8 +101,11 @@ describe('DocumentState - Proposal Management', () => {
   })
 
   describe('getChangeProposals', () => {
+    let stateWithProposals
+
     beforeEach(() => {
-      docState.addChangeProposal({
+      let current = state
+      current = addChangeProposal(current, {
         type: 'replace',
         agentId: 'editor-agent',
         category: 'style',
@@ -86,9 +114,9 @@ describe('DocumentState - Proposal Management', () => {
         originalText: 'The',
         proposedText: 'A',
         rationale: 'Test'
-      })
+      }).newState
 
-      docState.addChangeProposal({
+      current = addChangeProposal(current, {
         type: 'insert',
         agentId: 'revision-agent',
         category: 'content',
@@ -97,9 +125,9 @@ describe('DocumentState - Proposal Management', () => {
         originalText: '',
         proposedText: 'very ',
         rationale: 'Test'
-      })
+      }).newState
 
-      docState.addChangeProposal({
+      current = addChangeProposal(current, {
         type: 'replace',
         agentId: 'editor-agent',
         category: 'grammar',
@@ -108,40 +136,42 @@ describe('DocumentState - Proposal Management', () => {
         originalText: 'fox',
         proposedText: 'cat',
         rationale: 'Test'
-      })
+      }).newState
+
+      stateWithProposals = current
     })
 
     test('returns all proposals when no filter', () => {
-      const proposals = docState.getChangeProposals()
+      const proposals = getChangeProposals(stateWithProposals)
       expect(proposals).toHaveLength(3)
     })
 
     test('filters by status', () => {
-      const proposals = docState.getChangeProposals({ status: 'pending' })
+      const proposals = getChangeProposals(stateWithProposals, { status: 'pending' })
       expect(proposals).toHaveLength(3)
       expect(proposals.every(p => p.status === 'pending')).toBe(true)
     })
 
     test('filters by agentId', () => {
-      const proposals = docState.getChangeProposals({ agentId: 'editor-agent' })
+      const proposals = getChangeProposals(stateWithProposals, { agentId: 'editor-agent' })
       expect(proposals).toHaveLength(2)
       expect(proposals.every(p => p.agentId === 'editor-agent')).toBe(true)
     })
 
     test('filters by category', () => {
-      const proposals = docState.getChangeProposals({ category: 'style' })
+      const proposals = getChangeProposals(stateWithProposals, { category: 'style' })
       expect(proposals).toHaveLength(1)
       expect(proposals[0].category).toBe('style')
     })
 
     test('filters by priority', () => {
-      const proposals = docState.getChangeProposals({ priority: 'important' })
+      const proposals = getChangeProposals(stateWithProposals, { priority: 'important' })
       expect(proposals).toHaveLength(1)
       expect(proposals[0].priority).toBe('important')
     })
 
     test('combines multiple filters', () => {
-      const proposals = docState.getChangeProposals({
+      const proposals = getChangeProposals(stateWithProposals, {
         agentId: 'editor-agent',
         category: 'style'
       })
@@ -153,7 +183,8 @@ describe('DocumentState - Proposal Management', () => {
 
   describe('getPendingProposals', () => {
     test('returns only pending proposals', () => {
-      const id1 = docState.addChangeProposal({
+      let current = state
+      const { newState: s1 } = addChangeProposal(current, {
         type: 'replace',
         location: { start: 0, end: 3 },
         originalText: 'The',
@@ -164,7 +195,7 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'agent-1'
       })
 
-      const id2 = docState.addChangeProposal({
+      const { newState: s2, proposalId: id2 } = addChangeProposal(s1, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -175,10 +206,11 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'agent-1'
       })
 
-      // Approve one proposal
-      docState.approveProposal(id1)
+      // Approve first proposal
+      const id1 = getChangeProposals(s2)[0].id
+      const afterApprove = approveProposal(s2, id1)
 
-      const pendingProposals = docState.getPendingProposals()
+      const pendingProposals = getPendingProposals(afterApprove)
       expect(pendingProposals).toHaveLength(1)
       expect(pendingProposals[0].id).toBe(id2)
     })
@@ -186,7 +218,7 @@ describe('DocumentState - Proposal Management', () => {
 
   describe('approveProposal', () => {
     test('applies replace change using text matching', () => {
-      const proposalId = docState.addChangeProposal({
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -197,14 +229,13 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      const newContent = docState.approveProposal(proposalId)
+      const afterApprove = approveProposal(newState, proposalId)
 
-      expect(newContent).toBe('The fast brown fox jumps over the lazy dog')
-      expect(docState.getContent()).toBe('The fast brown fox jumps over the lazy dog')
+      expect(afterApprove.content).toBe('The fast brown fox jumps over the lazy dog')
     })
 
-    test('updates proposal status to approved', () => {
-      const proposalId = docState.addChangeProposal({
+    test('does not mutate original state', () => {
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -215,17 +246,32 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      docState.approveProposal(proposalId)
+      approveProposal(newState, proposalId)
 
-      const proposals = docState.getChangeProposals()
-      const approvedProposal = proposals.find(p => p.id === proposalId)
+      expect(newState.content).toBe('The quick brown fox jumps over the lazy dog')
+    })
+
+    test('updates proposal status to approved', () => {
+      const { newState, proposalId } = addChangeProposal(state, {
+        type: 'replace',
+        location: { start: 4, end: 9 },
+        originalText: 'quick',
+        proposedText: 'fast',
+        rationale: 'Test',
+        category: 'style',
+        priority: 'minor',
+        agentId: 'editor-agent'
+      })
+
+      const afterApprove = approveProposal(newState, proposalId)
+      const approvedProposal = getChangeProposals(afterApprove).find(p => p.id === proposalId)
 
       expect(approvedProposal.status).toBe('approved')
       expect(approvedProposal.appliedAt).toBeInstanceOf(Date)
     })
 
     test('creates version history entry with agent source', () => {
-      const proposalId = docState.addChangeProposal({
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -236,18 +282,16 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      const versionsBefore = docState.getVersionHistory().length
-      docState.approveProposal(proposalId)
-      const versionsAfter = docState.getVersionHistory().length
+      const versionsBefore = newState.versions.length
+      const afterApprove = approveProposal(newState, proposalId)
 
-      expect(versionsAfter).toBe(versionsBefore + 1)
-
-      const latestVersion = docState.getVersionHistory()[versionsAfter - 1]
+      expect(afterApprove.versions.length).toBe(versionsBefore + 1)
+      const latestVersion = afterApprove.versions[afterApprove.versions.length - 1]
       expect(latestVersion.source).toBe('agent:editor-agent')
     })
 
     test('tracks applied changes', () => {
-      const proposalId = docState.addChangeProposal({
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 0, end: 3 },
         originalText: 'The',
@@ -258,9 +302,9 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      docState.approveProposal(proposalId)
+      const afterApprove = approveProposal(newState, proposalId)
+      const exported = exportState(afterApprove)
 
-      const exported = docState.export()
       expect(exported.appliedChanges).toHaveLength(1)
       expect(exported.appliedChanges[0].proposalId).toBe(proposalId)
       expect(exported.appliedChanges[0].timestamp).toBeInstanceOf(Date)
@@ -268,12 +312,12 @@ describe('DocumentState - Proposal Management', () => {
 
     test('throws error when proposal not found', () => {
       expect(() => {
-        docState.approveProposal('non-existent-id')
+        approveProposal(state, 'non-existent-id')
       }).toThrow('Proposal non-existent-id not found')
     })
 
     test('throws error when proposal not pending', () => {
-      const proposalId = docState.addChangeProposal({
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 0, end: 3 },
         originalText: 'The',
@@ -284,15 +328,16 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      docState.approveProposal(proposalId)
+      const afterApprove = approveProposal(newState, proposalId)
 
       expect(() => {
-        docState.approveProposal(proposalId)
+        approveProposal(afterApprove, proposalId)
       }).toThrow(`Proposal ${proposalId} is not pending`)
     })
 
     test('marks other pending proposals as potentially invalid', () => {
-      const id1 = docState.addChangeProposal({
+      let current = state
+      const { newState: s1, proposalId: id1 } = addChangeProposal(current, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -303,7 +348,7 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'agent-1'
       })
 
-      const id2 = docState.addChangeProposal({
+      const { newState: s2, proposalId: id2 } = addChangeProposal(s1, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -315,11 +360,9 @@ describe('DocumentState - Proposal Management', () => {
       })
 
       // Approve first proposal - should mark second as invalid
-      docState.approveProposal(id1)
+      const afterApprove = approveProposal(s2, id1)
 
-      const proposals = docState.getChangeProposals()
-      const secondProposal = proposals.find(p => p.id === id2)
-
+      const secondProposal = getChangeProposals(afterApprove).find(p => p.id === id2)
       expect(secondProposal.status).toBe('pending')
       expect(secondProposal.metadata?.mayBeInvalid).toBe(true)
     })
@@ -327,7 +370,7 @@ describe('DocumentState - Proposal Management', () => {
 
   describe('rejectProposal', () => {
     test('updates proposal status to rejected', () => {
-      const proposalId = docState.addChangeProposal({
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 0, end: 3 },
         originalText: 'The',
@@ -338,17 +381,16 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      const proposal = docState.rejectProposal(proposalId, 'Not needed')
+      const afterReject = rejectProposal(newState, proposalId, 'Not needed')
+      const rejectedProposal = getChangeProposals(afterReject).find(p => p.id === proposalId)
 
-      expect(proposal.status).toBe('rejected')
-      expect(proposal.rejectedAt).toBeInstanceOf(Date)
-      expect(proposal.rejectionReason).toBe('Not needed')
+      expect(rejectedProposal.status).toBe('rejected')
+      expect(rejectedProposal.rejectedAt).toBeInstanceOf(Date)
+      expect(rejectedProposal.rejectionReason).toBe('Not needed')
     })
 
     test('does not change document content', () => {
-      const originalContent = docState.getContent()
-
-      const proposalId = docState.addChangeProposal({
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 0, end: 3 },
         originalText: 'The',
@@ -359,19 +401,18 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      docState.rejectProposal(proposalId)
-
-      expect(docState.getContent()).toBe(originalContent)
+      const afterReject = rejectProposal(newState, proposalId)
+      expect(afterReject.content).toBe(state.content)
     })
 
     test('throws error when proposal not found', () => {
       expect(() => {
-        docState.rejectProposal('non-existent-id')
+        rejectProposal(state, 'non-existent-id')
       }).toThrow('Proposal non-existent-id not found')
     })
 
     test('allows rejection with empty reason', () => {
-      const proposalId = docState.addChangeProposal({
+      const { newState, proposalId } = addChangeProposal(state, {
         type: 'replace',
         location: { start: 0, end: 3 },
         originalText: 'The',
@@ -382,7 +423,8 @@ describe('DocumentState - Proposal Management', () => {
         agentId: 'editor-agent'
       })
 
-      const proposal = docState.rejectProposal(proposalId)
+      const afterReject = rejectProposal(newState, proposalId)
+      const proposal = getChangeProposals(afterReject).find(p => p.id === proposalId)
 
       expect(proposal.status).toBe('rejected')
       expect(proposal.rejectionReason).toBe('')
@@ -390,8 +432,11 @@ describe('DocumentState - Proposal Management', () => {
   })
 
   describe('approveAllFromAgent', () => {
+    let stateWithProposals
+
     beforeEach(() => {
-      docState.addChangeProposal({
+      let current = state
+      current = addChangeProposal(current, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
@@ -400,9 +445,9 @@ describe('DocumentState - Proposal Management', () => {
         category: 'style',
         priority: 'minor',
         agentId: 'editor-agent'
-      })
+      }).newState
 
-      docState.addChangeProposal({
+      current = addChangeProposal(current, {
         type: 'replace',
         location: { start: 16, end: 19 },
         originalText: 'fox',
@@ -411,9 +456,9 @@ describe('DocumentState - Proposal Management', () => {
         category: 'content',
         priority: 'minor',
         agentId: 'editor-agent'
-      })
+      }).newState
 
-      docState.addChangeProposal({
+      current = addChangeProposal(current, {
         type: 'replace',
         location: { start: 35, end: 39 },
         originalText: 'lazy',
@@ -422,182 +467,112 @@ describe('DocumentState - Proposal Management', () => {
         category: 'style',
         priority: 'minor',
         agentId: 'revision-agent'
-      })
+      }).newState
+
+      stateWithProposals = current
     })
 
     test('approves all proposals from specified agent', () => {
-      const results = docState.approveAllFromAgent('editor-agent')
+      const { newState, results } = approveAllFromAgent(stateWithProposals, 'editor-agent')
 
       expect(results).toHaveLength(2)
       expect(results.every(r => r.success)).toBe(true)
 
-      const editorProposals = docState.getChangeProposals({ agentId: 'editor-agent' })
+      const editorProposals = getChangeProposals(newState, { agentId: 'editor-agent' })
       expect(editorProposals.every(p => p.status === 'approved')).toBe(true)
     })
 
     test('does not approve proposals from other agents', () => {
-      docState.approveAllFromAgent('editor-agent')
+      const { newState } = approveAllFromAgent(stateWithProposals, 'editor-agent')
 
-      const revisionProposals = docState.getChangeProposals({ agentId: 'revision-agent' })
+      const revisionProposals = getChangeProposals(newState, { agentId: 'revision-agent' })
       expect(revisionProposals[0].status).toBe('pending')
     })
 
-    test('returns all results for multiple proposals', () => {
-      // Add multiple proposals from same agent
-      docState.addChangeProposal({
-        type: 'replace',
-        location: { start: 4, end: 9 },
-        originalText: 'quick',
-        proposedText: 'fast',
-        rationale: 'Test',
-        category: 'style',
-        priority: 'minor',
-        agentId: 'batch-agent'
-      })
-
-      docState.addChangeProposal({
-        type: 'replace',
-        location: { start: 10, end: 15 },
-        originalText: 'brown',
-        proposedText: 'red',
-        rationale: 'Test',
-        category: 'style',
-        priority: 'minor',
-        agentId: 'batch-agent'
-      })
-
-      const results = docState.approveAllFromAgent('batch-agent')
-
-      expect(results).toHaveLength(2)
-      expect(results.every(r => r.success)).toBe(true)
-      expect(results.every(r => r.proposalId)).toBeTruthy()
-    })
-
     test('handles agent with no proposals', () => {
-      const results = docState.approveAllFromAgent('non-existent-agent')
-
+      const { results } = approveAllFromAgent(stateWithProposals, 'non-existent-agent')
       expect(results).toHaveLength(0)
     })
   })
 
   describe('applyChange', () => {
+    const content = 'The quick brown fox jumps over the lazy dog'
+
     test('handles replace operation with text matching', () => {
-      const proposal = {
+      const newContent = applyChange(content, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'quick',
-        proposedText: 'fast',
-        rationale: 'Test',
-        category: 'style',
-        priority: 'minor',
-        agentId: 'editor-agent'
-      }
-
-      const newContent = docState.applyChange(proposal)
+        proposedText: 'fast'
+      })
 
       expect(newContent).toBe('The fast brown fox jumps over the lazy dog')
     })
 
     test('handles replace operation with position fallback', () => {
-      const proposal = {
+      const newContent = applyChange(content, {
         type: 'replace',
         location: { start: 4, end: 9 },
         originalText: 'NONEXISTENT',
-        proposedText: 'fast',
-        rationale: 'Test',
-        category: 'style',
-        priority: 'minor',
-        agentId: 'editor-agent'
-      }
-
-      const newContent = docState.applyChange(proposal)
+        proposedText: 'fast'
+      })
 
       // Falls back to position-based replacement
       expect(newContent).toBe('The fast brown fox jumps over the lazy dog')
     })
 
     test('handles insert operation', () => {
-      const proposal = {
+      const newContent = applyChange(content, {
         type: 'insert',
         location: { start: 10, end: 10 },
         originalText: '',
-        proposedText: 'very ',
-        rationale: 'Test',
-        category: 'style',
-        priority: 'minor',
-        agentId: 'editor-agent'
-      }
-
-      const newContent = docState.applyChange(proposal)
+        proposedText: 'very '
+      })
 
       expect(newContent).toBe('The quick very brown fox jumps over the lazy dog')
     })
 
     test('handles delete operation', () => {
-      const proposal = {
+      const newContent = applyChange(content, {
         type: 'delete',
         location: { start: 4, end: 10 },
         originalText: 'quick ',
-        proposedText: '',
-        rationale: 'Test',
-        category: 'style',
-        priority: 'minor',
-        agentId: 'editor-agent'
-      }
-
-      const newContent = docState.applyChange(proposal)
+        proposedText: ''
+      })
 
       expect(newContent).toBe('The brown fox jumps over the lazy dog')
     })
 
     test('handles restructure operation', () => {
-      const proposal = {
+      const newContent = applyChange(content, {
         type: 'restructure',
         location: { start: 0, end: 44 },
-        originalText: 'The quick brown fox jumps over the lazy dog',
-        proposedText: 'A lazy dog was jumped over by a quick brown fox',
-        rationale: 'Test',
-        category: 'structure',
-        priority: 'major',
-        agentId: 'editor-agent'
-      }
-
-      const newContent = docState.applyChange(proposal)
+        originalText: content,
+        proposedText: 'A lazy dog was jumped over by a quick brown fox'
+      })
 
       expect(newContent).toBe('A lazy dog was jumped over by a quick brown fox')
     })
 
     test('handles comment operation without changing content', () => {
-      const proposal = {
+      const newContent = applyChange(content, {
         type: 'comment',
         location: { start: 0, end: 0 },
         originalText: '',
-        proposedText: 'This is a comment',
-        rationale: 'Test',
-        category: 'comment',
-        priority: 'minor',
-        agentId: 'editor-agent'
-      }
+        proposedText: 'This is a comment'
+      })
 
-      const newContent = docState.applyChange(proposal)
-
-      expect(newContent).toBe('The quick brown fox jumps over the lazy dog')
+      expect(newContent).toBe(content)
     })
 
     test('throws error on unknown change type', () => {
-      const proposal = {
-        type: 'unknown',
-        location: { start: 0, end: 0 },
-        originalText: '',
-        proposedText: 'test',
-        rationale: 'Test',
-        category: 'test',
-        priority: 'minor',
-        agentId: 'editor-agent'
-      }
-
       expect(() => {
-        docState.applyChange(proposal)
+        applyChange(content, {
+          type: 'unknown',
+          location: { start: 0, end: 0 },
+          originalText: '',
+          proposedText: 'test'
+        })
       }).toThrow('Unknown change type: unknown')
     })
   })

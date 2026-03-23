@@ -368,19 +368,19 @@ describe.skip('AgentContext - Initialization', () => {
   })
 
   describe('Context state exposure', () => {
-    test('exposes updateCounter', () => {
-      function CounterComponent() {
-        const { updateCounter } = useAgents()
-        return <span data-testid="counter">{updateCounter}</span>
+    test('exposes documentContent', () => {
+      function ContentComponent() {
+        const { documentContent } = useAgents()
+        return <span data-testid="content">{documentContent || 'none'}</span>
       }
 
       render(
         <AgentProvider>
-          <CounterComponent />
+          <ContentComponent />
         </AgentProvider>
       )
 
-      expect(screen.getByTestId('counter')).toHaveTextContent('0')
+      expect(screen.getByTestId('content')).toHaveTextContent('none')
     })
 
     test('exposes annotations', () => {

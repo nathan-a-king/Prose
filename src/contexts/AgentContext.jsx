@@ -1,28 +1,66 @@
 /**
  * Agent Context
  *
- * React context for managing the multi-agent editorial system
+ * React context for managing the multi-agent editorial system.
+ * Uses useReducer with immutable document state for correct React updates.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { DocumentState } from '../services/agents/documentState'
+import { createContext, useContext, useState, useEffect, useCallback, useReducer, useRef } from 'react'
+import {
+  createDocumentState,
+  updateContent,
+  addChangeProposal as addChangeProposalFn,
+  approveProposal as approveProposalFn,
+  rejectProposal as rejectProposalFn,
+  approveAllFromAgent as approveAllFromAgentFn,
+  getChangeProposals,
+  getPendingProposals as getPendingProposalsFn,
+  getAnnotations,
+  DocumentState
+} from '../services/agents/documentState'
 import { initializeAgentSystem, getAllAgents, getAgentsByStage } from '../agents'
 import { getOrchestrator } from '../services/agents/orchestrator'
 
 const AgentContext = createContext()
 
+function documentReducer(state, action) {
+  switch (action.type) {
+    case 'INITIALIZE':
+      return createDocumentState(action.content, action.metadata)
+    case 'UPDATE_CONTENT':
+      return updateContent(state, action.content, action.source)
+    case 'APPROVE_PROPOSAL':
+      return approveProposalFn(state, action.proposalId)
+    case 'REJECT_PROPOSAL':
+      return rejectProposalFn(state, action.proposalId, action.reason)
+    case 'SYNC':
+      return action.state
+    default:
+      return state
+  }
+}
+
 export function AgentProvider({ children }) {
-  const [documentState, setDocumentState] = useState(null)
-  const [updateCounter, setUpdateCounter] = useState(0) // Force re-renders
+  const [docState, dispatch] = useReducer(documentReducer, null)
   const [orchestrator] = useState(() => getOrchestrator())
   const [agents, setAgents] = useState([])
   const [pipelines, setPipelines] = useState([])
-  const [changeProposals, setChangeProposals] = useState([])
-  const [annotations, setAnnotations] = useState([])
   const [isExecuting, setIsExecuting] = useState(false)
   const [currentStep, setCurrentStep] = useState(null)
   const [executionProgress, setExecutionProgress] = useState(null)
   const [selectedAgent, setSelectedAgent] = useState(null)
+
+  // Ref holding a DocumentState class wrapper for agent execution.
+  // Agents call methods on this (addChangeProposal, addAnnotation, etc.)
+  // and we sync the internal state back to the reducer after execution.
+  const wrapperRef = useRef(null)
+
+  // Keep wrapper in sync when reducer state changes from non-agent actions
+  useEffect(() => {
+    if (docState && wrapperRef.current) {
+      wrapperRef.current._state = docState
+    }
+  }, [docState])
 
   // Initialize agent system on mount
   useEffect(() => {
@@ -31,39 +69,34 @@ export function AgentProvider({ children }) {
     setPipelines(orchestrator.getAllPipelines())
   }, [orchestrator])
 
+  // Derive proposals and annotations from reducer state
+  const changeProposals = docState ? getChangeProposals(docState) : []
+  const annotations = docState ? getAnnotations(docState) : []
+
   /**
    * Initialize or update document state
    */
   const initializeDocument = useCallback((content, metadata = {}) => {
-    const state = new DocumentState(content, metadata)
-    setDocumentState(state)
-    updateProposalsAndAnnotations(state)
+    const wrapper = new DocumentState(content, metadata)
+    wrapperRef.current = wrapper
+    dispatch({ type: 'INITIALIZE', content, metadata })
   }, [])
 
   /**
    * Update document content
    */
   const updateDocumentContent = useCallback((content, source = 'user') => {
-    if (!documentState) return
-
-    documentState.updateContent(content, source)
-    setDocumentState(documentState) // Trigger re-render
-    updateProposalsAndAnnotations(documentState)
-  }, [documentState])
+    if (!docState) return
+    dispatch({ type: 'UPDATE_CONTENT', content, source })
+  }, [docState])
 
   /**
-   * Update proposals and annotations from document state
-   */
-  const updateProposalsAndAnnotations = useCallback((state) => {
-    setChangeProposals(state.getChangeProposals())
-    setAnnotations(state.getAnnotations())
-  }, [])
-
-  /**
-   * Execute a single agent
+   * Execute a single agent.
+   * Agents use the DocumentState class API (addChangeProposal, etc.),
+   * so we pass the wrapper ref and sync its state back afterward.
    */
   const executeAgent = useCallback(async (agentId, options = {}) => {
-    if (!documentState) {
+    if (!docState) {
       console.error('[AgentContext] No document initialized. DocumentState is null.')
       throw new Error('No document initialized')
     }
@@ -72,10 +105,11 @@ export function AgentProvider({ children }) {
     setExecutionProgress({ type: 'agent', agentId, status: 'running' })
 
     try {
-      const result = await orchestrator.executeAgent(agentId, documentState, options)
+      const wrapper = wrapperRef.current
+      const result = await orchestrator.executeAgent(agentId, wrapper, options)
 
-      // Update proposals and annotations
-      updateProposalsAndAnnotations(documentState)
+      // Sync agent mutations back to reducer
+      dispatch({ type: 'SYNC', state: wrapper._state })
 
       setExecutionProgress({ type: 'agent', agentId, status: 'completed', result })
       return result
@@ -86,13 +120,13 @@ export function AgentProvider({ children }) {
       setIsExecuting(false)
       setTimeout(() => setExecutionProgress(null), 3000)
     }
-  }, [documentState, orchestrator, updateProposalsAndAnnotations])
+  }, [docState, orchestrator])
 
   /**
    * Execute a pipeline
    */
   const executePipeline = useCallback(async (pipelineId, options = {}) => {
-    if (!documentState) {
+    if (!docState) {
       throw new Error('No document initialized')
     }
 
@@ -100,13 +134,15 @@ export function AgentProvider({ children }) {
     setExecutionProgress({ type: 'pipeline', pipelineId, status: 'running' })
 
     try {
-      const result = await orchestrator.executePipeline(pipelineId, documentState, {
+      const wrapper = wrapperRef.current
+      const result = await orchestrator.executePipeline(pipelineId, wrapper, {
         onStepStart: (stepIndex, step) => {
           setCurrentStep({ stepIndex, step, status: 'running' })
         },
         onStepComplete: (stepIndex, step, result) => {
           setCurrentStep({ stepIndex, step, status: 'completed', result })
-          updateProposalsAndAnnotations(documentState)
+          // Sync intermediate state so UI updates between pipeline steps
+          dispatch({ type: 'SYNC', state: wrapper._state })
         },
         onProgress: (stepIndex, data) => {
           setExecutionProgress({
@@ -120,6 +156,9 @@ export function AgentProvider({ children }) {
         ...options
       })
 
+      // Final sync
+      dispatch({ type: 'SYNC', state: wrapper._state })
+
       setExecutionProgress({ type: 'pipeline', pipelineId, status: 'completed', result })
       return result
     } catch (error) {
@@ -130,76 +169,70 @@ export function AgentProvider({ children }) {
       setCurrentStep(null)
       setTimeout(() => setExecutionProgress(null), 3000)
     }
-  }, [documentState, orchestrator, updateProposalsAndAnnotations])
+  }, [docState, orchestrator])
 
   /**
    * Approve a change proposal
    */
   const approveProposal = useCallback((proposalId) => {
-    if (!documentState) return
+    if (!docState) return
 
     try {
-      const newContent = documentState.approveProposal(proposalId)
-      // Force React to recognize the state change
-      setUpdateCounter(c => c + 1)
-      updateProposalsAndAnnotations(documentState)
-      return newContent
+      // Compute new state to get the resulting content
+      const newState = approveProposalFn(docState, proposalId)
+      dispatch({ type: 'SYNC', state: newState })
+      return newState.content
     } catch (error) {
       console.error('Failed to approve proposal:', error)
       throw error
     }
-  }, [documentState, updateProposalsAndAnnotations])
+  }, [docState])
 
   /**
    * Reject a change proposal
    */
   const rejectProposal = useCallback((proposalId, reason = '') => {
-    if (!documentState) return
+    if (!docState) return
 
     try {
-      documentState.rejectProposal(proposalId, reason)
-      // Force React to recognize the state change
-      setUpdateCounter(c => c + 1)
-      updateProposalsAndAnnotations(documentState)
+      dispatch({ type: 'REJECT_PROPOSAL', proposalId, reason })
     } catch (error) {
       console.error('Failed to reject proposal:', error)
       throw error
     }
-  }, [documentState, updateProposalsAndAnnotations])
+  }, [docState])
 
   /**
    * Approve all proposals from an agent
    */
   const approveAllFromAgent = useCallback((agentId) => {
-    if (!documentState) return
+    if (!docState) return
 
     try {
-      const results = documentState.approveAllFromAgent(agentId)
-      // Force React to recognize the state change
-      setUpdateCounter(c => c + 1)
-      updateProposalsAndAnnotations(documentState)
+      const { newState, results } = approveAllFromAgentFn(docState, agentId)
+      dispatch({ type: 'SYNC', state: newState })
       return results
     } catch (error) {
       console.error('Failed to approve all proposals:', error)
       throw error
     }
-  }, [documentState, updateProposalsAndAnnotations])
+  }, [docState])
 
   /**
    * Get pending proposals
    */
   const getPendingProposals = useCallback(() => {
-    if (!documentState) return []
-    return documentState.getPendingProposals()
-  }, [documentState])
+    if (!docState) return []
+    return getPendingProposalsFn(docState)
+  }, [docState])
 
   /**
    * Get proposals by filter
    */
   const getFilteredProposals = useCallback((filter) => {
-    if (!documentState) return []
-    return documentState.getChangeProposals(filter)
-  }, [documentState])
+    if (!docState) return []
+    return getChangeProposals(docState, filter)
+  }, [docState])
 
   /**
    * Cancel current execution
@@ -211,10 +244,15 @@ export function AgentProvider({ children }) {
     setExecutionProgress(null)
   }, [orchestrator])
 
+  // Expose the DocumentState wrapper for backward compatibility.
+  // Consumers (agents, tests) call methods on this object directly.
+  // Will be removed when consumers migrate to dispatch-based API (Phase 2.3).
+  const documentState = wrapperRef.current
+
   const value = {
     // State
     documentState,
-    updateCounter,
+    documentContent: docState ? docState.content : null,
     agents,
     pipelines,
     changeProposals,

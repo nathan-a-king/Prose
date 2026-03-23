@@ -1,173 +1,184 @@
 import { describe, test, expect, beforeEach } from 'vitest'
-import { DocumentState } from '../documentState'
+import {
+  createDocumentState,
+  updateContent,
+  addChangeProposal,
+  addAnnotation,
+  getChangeProposals,
+  getAnnotations,
+  revertToVersion,
+  exportState,
+  importState,
+  countWords,
+  computeDiff
+} from '../documentState'
 
-describe('DocumentState - Core Functionality', () => {
-  describe('Constructor', () => {
+describe('DocumentState - Core Functionality (Pure Functions)', () => {
+  describe('createDocumentState', () => {
     test('initializes with content and metadata', () => {
-      const content = 'Hello world'
-      const metadata = {
+      const state = createDocumentState('Hello world', {
         title: 'My Document',
         createdAt: new Date('2024-01-01')
-      }
+      })
 
-      const docState = new DocumentState(content, metadata)
-
-      expect(docState.getContent()).toBe('Hello world')
-      expect(docState.getMetadata().title).toBe('My Document')
-      expect(docState.getMetadata().createdAt).toEqual(new Date('2024-01-01'))
-      expect(docState.getMetadata().wordCount).toBe(2)
+      expect(state.content).toBe('Hello world')
+      expect(state.metadata.title).toBe('My Document')
+      expect(state.metadata.createdAt).toEqual(new Date('2024-01-01'))
+      expect(state.metadata.wordCount).toBe(2)
     })
 
     test('initializes with empty content', () => {
-      const docState = new DocumentState()
+      const state = createDocumentState()
 
-      expect(docState.getContent()).toBe('')
-      expect(docState.getMetadata().title).toBe('Untitled Document')
-      expect(docState.getMetadata().wordCount).toBe(0)
+      expect(state.content).toBe('')
+      expect(state.metadata.title).toBe('Untitled Document')
+      expect(state.metadata.wordCount).toBe(0)
     })
 
     test('creates initial version in history', () => {
-      const docState = new DocumentState('Initial content')
+      const state = createDocumentState('Initial content')
 
-      const versions = docState.getVersionHistory()
-      expect(versions).toHaveLength(1)
-      expect(versions[0].content).toBe('Initial content')
-      expect(versions[0].source).toBe('initial')
-      expect(versions[0].timestamp).toBeInstanceOf(Date)
+      expect(state.versions).toHaveLength(1)
+      expect(state.versions[0].content).toBe('Initial content')
+      expect(state.versions[0].source).toBe('initial')
+      expect(state.versions[0].timestamp).toBeInstanceOf(Date)
     })
   })
 
-  describe('getContent and getMetadata', () => {
-    let docState
+  describe('state access', () => {
+    let state
 
     beforeEach(() => {
-      docState = new DocumentState('Test content', {
+      state = createDocumentState('Test content', {
         title: 'Test Doc',
         author: 'Test Author'
       })
     })
 
-    test('getContent returns current content', () => {
-      expect(docState.getContent()).toBe('Test content')
+    test('content is accessible directly', () => {
+      expect(state.content).toBe('Test content')
     })
 
-    test('getMetadata returns copy of metadata', () => {
-      const metadata = docState.getMetadata()
-
-      expect(metadata.title).toBe('Test Doc')
-      expect(metadata.author).toBe('Test Author')
-      expect(metadata.wordCount).toBe(2)
-
-      // Ensure it's a copy, not reference
-      metadata.title = 'Modified'
-      expect(docState.getMetadata().title).toBe('Test Doc')
+    test('metadata is accessible directly', () => {
+      expect(state.metadata.title).toBe('Test Doc')
+      expect(state.metadata.author).toBe('Test Author')
+      expect(state.metadata.wordCount).toBe(2)
     })
   })
 
   describe('updateContent', () => {
-    let docState
+    let state
 
     beforeEach(() => {
-      docState = new DocumentState('Original content')
+      state = createDocumentState('Original content')
     })
 
-    test('updates content and creates version history entry', () => {
-      const versionId = docState.updateContent('New content')
+    test('returns new state with updated content and version', () => {
+      const newState = updateContent(state, 'New content')
 
-      expect(docState.getContent()).toBe('New content')
-      expect(versionId).toBe(1) // Second version (0-indexed)
+      expect(newState.content).toBe('New content')
+      expect(newState.versions).toHaveLength(2)
+      expect(newState.versions[1].content).toBe('New content')
+      expect(newState.versions[1].source).toBe('user')
+    })
 
-      const versions = docState.getVersionHistory()
-      expect(versions).toHaveLength(2)
-      expect(versions[1].content).toBe('New content')
-      expect(versions[1].source).toBe('user')
+    test('does not mutate original state', () => {
+      updateContent(state, 'New content')
+
+      expect(state.content).toBe('Original content')
+      expect(state.versions).toHaveLength(1)
     })
 
     test('updates word count in metadata', () => {
-      docState.updateContent('This has five words here')
+      const newState = updateContent(state, 'This has five words here')
 
-      expect(docState.getMetadata().wordCount).toBe(5)
+      expect(newState.metadata.wordCount).toBe(5)
     })
 
     test('updates updatedAt timestamp', () => {
       const beforeUpdate = new Date()
-      docState.updateContent('Updated content')
+      const newState = updateContent(state, 'Updated content')
       const afterUpdate = new Date()
 
-      const updatedAt = docState.getMetadata().updatedAt
+      const updatedAt = newState.metadata.updatedAt
       expect(updatedAt.getTime()).toBeGreaterThanOrEqual(beforeUpdate.getTime())
       expect(updatedAt.getTime()).toBeLessThanOrEqual(afterUpdate.getTime())
     })
 
     test('allows custom source for version history', () => {
-      docState.updateContent('Agent content', 'agent:brainstorm')
+      const newState = updateContent(state, 'Agent content', 'agent:brainstorm')
 
-      const versions = docState.getVersionHistory()
-      expect(versions[1].source).toBe('agent:brainstorm')
+      expect(newState.versions[1].source).toBe('agent:brainstorm')
     })
 
     test('handles rapid updates', () => {
-      docState.updateContent('Update 1')
-      docState.updateContent('Update 2')
-      docState.updateContent('Update 3')
+      let current = state
+      current = updateContent(current, 'Update 1')
+      current = updateContent(current, 'Update 2')
+      current = updateContent(current, 'Update 3')
 
-      expect(docState.getContent()).toBe('Update 3')
-      const versions = docState.getVersionHistory()
-      expect(versions).toHaveLength(4) // Initial + 3 updates
+      expect(current.content).toBe('Update 3')
+      expect(current.versions).toHaveLength(4) // Initial + 3 updates
     })
 
     test('includes diff in version history', () => {
-      docState.updateContent('This is much longer content')
+      const newState = updateContent(state, 'This is much longer content')
 
-      const versions = docState.getVersionHistory()
-      expect(versions[1].diff).toBeDefined()
-      expect(versions[1].diff.type).toBe('addition')
+      expect(newState.versions[1].diff).toBeDefined()
+      expect(newState.versions[1].diff.type).toBe('addition')
+    })
+
+    test('caps version history at 50 entries', () => {
+      let current = state
+      for (let i = 0; i < 55; i++) {
+        current = updateContent(current, `Version ${i}`)
+      }
+
+      expect(current.versions.length).toBeLessThanOrEqual(50)
+      // Initial version is preserved
+      expect(current.versions[0].source).toBe('initial')
+      // Latest version is present
+      expect(current.content).toBe('Version 54')
     })
   })
 
   describe('countWords', () => {
-    let docState
-
-    beforeEach(() => {
-      docState = new DocumentState('')
-    })
-
     test('counts words accurately', () => {
-      expect(docState.countWords('Hello world')).toBe(2)
-      expect(docState.countWords('One two three four five')).toBe(5)
+      expect(countWords('Hello world')).toBe(2)
+      expect(countWords('One two three four five')).toBe(5)
     })
 
     test('handles empty string', () => {
-      expect(docState.countWords('')).toBe(0)
+      expect(countWords('')).toBe(0)
     })
 
     test('handles whitespace', () => {
-      expect(docState.countWords('   ')).toBe(0)
-      expect(docState.countWords('  word  ')).toBe(1)
-      expect(docState.countWords('word1   word2')).toBe(2)
+      expect(countWords('   ')).toBe(0)
+      expect(countWords('  word  ')).toBe(1)
+      expect(countWords('word1   word2')).toBe(2)
     })
 
     test('handles special characters', () => {
-      expect(docState.countWords('hello, world!')).toBe(2)
-      expect(docState.countWords('one-two three')).toBe(2)
+      expect(countWords('hello, world!')).toBe(2)
+      expect(countWords('one-two three')).toBe(2)
     })
 
     test('handles newlines and tabs', () => {
-      expect(docState.countWords('line1\nline2')).toBe(2)
-      expect(docState.countWords('tab\there')).toBe(2)
+      expect(countWords('line1\nline2')).toBe(2)
+      expect(countWords('tab\there')).toBe(2)
     })
   })
 
-  describe('export and import', () => {
-    let docState
+  describe('exportState and importState', () => {
+    let state
 
     beforeEach(() => {
-      docState = new DocumentState('Export test content', {
+      state = createDocumentState('Export test content', {
         title: 'Export Test',
         author: 'Tester'
       })
-      docState.updateContent('Updated content')
-      docState.addChangeProposal({
+      state = updateContent(state, 'Updated content')
+      const result = addChangeProposal(state, {
         type: 'replace',
         location: { start: 0, end: 7 },
         originalText: 'Updated',
@@ -177,15 +188,17 @@ describe('DocumentState - Core Functionality', () => {
         priority: 'minor',
         agentId: 'test-agent'
       })
-      docState.addAnnotation({
+      state = result.newState
+      const annotationResult = addAnnotation(state, {
         agentId: 'test-agent',
         category: 'analysis',
         text: 'Test annotation'
       })
+      state = annotationResult.newState
     })
 
     test('export serializes state correctly', () => {
-      const exported = docState.export()
+      const exported = exportState(state)
 
       expect(exported.content).toBe('Updated content')
       expect(exported.metadata.title).toBe('Export Test')
@@ -197,14 +210,14 @@ describe('DocumentState - Core Functionality', () => {
     })
 
     test('import deserializes state correctly', () => {
-      const exported = docState.export()
-      const imported = DocumentState.import(exported)
+      const exported = exportState(state)
+      const imported = importState(exported)
 
-      expect(imported.getContent()).toBe('Updated content')
-      expect(imported.getMetadata().title).toBe('Export Test')
-      expect(imported.getVersionHistory()).toHaveLength(2)
-      expect(imported.getChangeProposals()).toHaveLength(1)
-      expect(imported.getAnnotations()).toHaveLength(1)
+      expect(imported.content).toBe('Updated content')
+      expect(imported.metadata.title).toBe('Export Test')
+      expect(imported.versions).toHaveLength(2)
+      expect(imported.changeProposals).toHaveLength(1)
+      expect(imported.annotations).toHaveLength(1)
     })
 
     test('import handles missing optional fields', () => {
@@ -213,81 +226,73 @@ describe('DocumentState - Core Functionality', () => {
         metadata: { title: 'Minimal' }
       }
 
-      const imported = DocumentState.import(minimalData)
+      const imported = importState(minimalData)
 
-      expect(imported.getContent()).toBe('Minimal content')
-      expect(imported.getVersionHistory()).toEqual([])
-      expect(imported.getChangeProposals()).toEqual([])
-      expect(imported.getAnnotations()).toEqual([])
+      expect(imported.content).toBe('Minimal content')
+      expect(imported.versions).toEqual([])
+      expect(imported.changeProposals).toEqual([])
+      expect(imported.annotations).toEqual([])
     })
 
     test('export-import roundtrip preserves all data', () => {
-      const exported = docState.export()
-      const imported = DocumentState.import(exported)
-      const reExported = imported.export()
+      const exported = exportState(state)
+      const imported = importState(exported)
+      const reExported = exportState(imported)
 
       expect(reExported).toEqual(exported)
     })
   })
 
   describe('Version History', () => {
-    let docState
+    let state
 
     beforeEach(() => {
-      docState = new DocumentState('Version 1')
+      state = createDocumentState('Version 1')
     })
 
-    test('getVersionHistory returns all versions', () => {
-      docState.updateContent('Version 2')
-      docState.updateContent('Version 3')
+    test('versions track all updates', () => {
+      let current = state
+      current = updateContent(current, 'Version 2')
+      current = updateContent(current, 'Version 3')
 
-      const versions = docState.getVersionHistory()
-      expect(versions).toHaveLength(3)
-      expect(versions[0].content).toBe('Version 1')
-      expect(versions[1].content).toBe('Version 2')
-      expect(versions[2].content).toBe('Version 3')
-    })
-
-    test('getVersionHistory returns copy of versions array', () => {
-      const versions1 = docState.getVersionHistory()
-      const versions2 = docState.getVersionHistory()
-
-      expect(versions1).toEqual(versions2)
-      expect(versions1).not.toBe(versions2) // Different array instances
+      expect(current.versions).toHaveLength(3)
+      expect(current.versions[0].content).toBe('Version 1')
+      expect(current.versions[1].content).toBe('Version 2')
+      expect(current.versions[2].content).toBe('Version 3')
     })
 
     test('revertToVersion restores previous content', () => {
-      docState.updateContent('Version 2')
-      docState.updateContent('Version 3')
+      let current = state
+      current = updateContent(current, 'Version 2')
+      current = updateContent(current, 'Version 3')
 
-      docState.revertToVersion(0)
+      current = revertToVersion(current, 0)
 
-      expect(docState.getContent()).toBe('Version 1')
-      const versions = docState.getVersionHistory()
-      expect(versions).toHaveLength(4) // Original 3 + revert creates new version
-      expect(versions[3].source).toBe('revert')
+      expect(current.content).toBe('Version 1')
+      expect(current.versions).toHaveLength(4) // Original 3 + revert creates new version
+      expect(current.versions[3].source).toBe('revert')
     })
 
     test('revertToVersion throws on invalid index', () => {
       expect(() => {
-        docState.revertToVersion(-1)
+        revertToVersion(state, -1)
       }).toThrow('Invalid version index')
 
       expect(() => {
-        docState.revertToVersion(10)
+        revertToVersion(state, 10)
       }).toThrow('Invalid version index')
     })
   })
 
   describe('Annotations', () => {
-    let docState
+    let state
 
     beforeEach(() => {
-      docState = new DocumentState('Test content')
+      state = createDocumentState('Test content')
     })
 
     test('addAnnotation creates annotation with ID', () => {
-      const annotationId = docState.addAnnotation({
+      const { newState, annotationId } = addAnnotation(state, {
         agentId: 'test-agent',
         category: 'analysis',
         text: 'This is a test annotation',
@@ -297,38 +302,51 @@ describe('DocumentState - Core Functionality', () => {
       expect(annotationId).toBeTruthy()
       expect(annotationId).toMatch(/^annotation-/)
 
-      const annotations = docState.getAnnotations()
+      const annotations = getAnnotations(newState)
       expect(annotations).toHaveLength(1)
       expect(annotations[0].id).toBe(annotationId)
       expect(annotations[0].text).toBe('This is a test annotation')
       expect(annotations[0].createdAt).toBeInstanceOf(Date)
     })
 
-    test('getAnnotations filters by agentId', () => {
-      docState.addAnnotation({ agentId: 'agent-1', category: 'analysis', text: 'A1' })
-      docState.addAnnotation({ agentId: 'agent-2', category: 'analysis', text: 'A2' })
-      docState.addAnnotation({ agentId: 'agent-1', category: 'comment', text: 'A3' })
+    test('does not mutate original state', () => {
+      addAnnotation(state, {
+        agentId: 'test-agent',
+        category: 'analysis',
+        text: 'Annotation'
+      })
 
-      const agent1Annotations = docState.getAnnotations({ agentId: 'agent-1' })
+      expect(getAnnotations(state)).toHaveLength(0)
+    })
+
+    test('getAnnotations filters by agentId', () => {
+      let current = state
+      current = addAnnotation(current, { agentId: 'agent-1', category: 'analysis', text: 'A1' }).newState
+      current = addAnnotation(current, { agentId: 'agent-2', category: 'analysis', text: 'A2' }).newState
+      current = addAnnotation(current, { agentId: 'agent-1', category: 'comment', text: 'A3' }).newState
+
+      const agent1Annotations = getAnnotations(current, { agentId: 'agent-1' })
       expect(agent1Annotations).toHaveLength(2)
       expect(agent1Annotations.every(a => a.agentId === 'agent-1')).toBe(true)
     })
 
     test('getAnnotations filters by category', () => {
-      docState.addAnnotation({ agentId: 'agent-1', category: 'analysis', text: 'A1' })
-      docState.addAnnotation({ agentId: 'agent-2', category: 'comment', text: 'A2' })
-      docState.addAnnotation({ agentId: 'agent-1', category: 'analysis', text: 'A3' })
+      let current = state
+      current = addAnnotation(current, { agentId: 'agent-1', category: 'analysis', text: 'A1' }).newState
+      current = addAnnotation(current, { agentId: 'agent-2', category: 'comment', text: 'A2' }).newState
+      current = addAnnotation(current, { agentId: 'agent-1', category: 'analysis', text: 'A3' }).newState
 
-      const analysisAnnotations = docState.getAnnotations({ category: 'analysis' })
+      const analysisAnnotations = getAnnotations(current, { category: 'analysis' })
       expect(analysisAnnotations).toHaveLength(2)
       expect(analysisAnnotations.every(a => a.category === 'analysis')).toBe(true)
     })
 
     test('getAnnotations returns all without filter', () => {
-      docState.addAnnotation({ agentId: 'agent-1', category: 'analysis', text: 'A1' })
-      docState.addAnnotation({ agentId: 'agent-2', category: 'comment', text: 'A2' })
+      let current = state
+      current = addAnnotation(current, { agentId: 'agent-1', category: 'analysis', text: 'A1' }).newState
+      current = addAnnotation(current, { agentId: 'agent-2', category: 'comment', text: 'A2' }).newState
 
-      const allAnnotations = docState.getAnnotations()
+      const allAnnotations = getAnnotations(current)
       expect(allAnnotations).toHaveLength(2)
     })
   })
