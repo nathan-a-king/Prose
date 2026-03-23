@@ -32,24 +32,38 @@ function findNodeBinary() {
     '/usr/local/bin/node',
     '/opt/homebrew/bin/node',
     '/usr/bin/node',
-    // Try to find via which command with extended PATH
-    process.env.HOME + '/.nvm/versions/node/v22.17.0/bin/node'
   ];
-  
+
+  // Dynamically find NVM/fnm/volta paths instead of hardcoding a version
+  if (process.env.NVM_DIR) {
+    const nvmCurrent = path.join(process.env.NVM_DIR, 'current', 'bin', 'node');
+    commonPaths.unshift(nvmCurrent);
+  }
+  if (process.env.FNM_DIR) {
+    const fnmCurrent = path.join(process.env.FNM_DIR, 'current', 'bin', 'node');
+    commonPaths.unshift(fnmCurrent);
+  }
+  if (process.env.VOLTA_HOME) {
+    const voltaBin = path.join(process.env.VOLTA_HOME, 'bin', 'node');
+    commonPaths.unshift(voltaBin);
+  }
+
+  // Build an extended PATH from known manager locations
+  const extraPaths = commonPaths.map(p => path.dirname(p)).join(':');
+
   // First try the current process.env PATH
   try {
-    const result = execSync('which node', { 
-      env: { 
-        ...process.env, 
-        PATH: process.env.PATH + ':/usr/local/bin:/opt/homebrew/bin:' + process.env.HOME + '/.nvm/versions/node/v22.17.0/bin'
+    const result = execSync('which node', {
+      env: {
+        ...process.env,
+        PATH: process.env.PATH + ':' + extraPaths
       }
     }).toString().trim();
     if (result && fs.existsSync(result)) {
-      console.log('Found node via which:', result);
       return result;
     }
   } catch (e) {
-    console.log('which command failed, trying common paths');
+    // which command failed, try common paths
   }
   
   // Try common paths
@@ -493,9 +507,17 @@ ipcMain.handle('file:exists', async (event, filePath) => {
   return fs.existsSync(filePath);
 });
 
+// Validate storage key to prevent path traversal (e.g. ../../etc/foo)
+function validateStorageKey(key) {
+  if (typeof key !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(key)) {
+    throw new Error('Invalid storage key');
+  }
+}
+
 // Secure Storage IPC Handlers for API key encryption
 ipcMain.handle('secure-storage:set', async (event, key, value) => {
   try {
+    validateStorageKey(key);
     const { safeStorage } = await import('electron');
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('Encryption not available on this system');
@@ -519,6 +541,7 @@ ipcMain.handle('secure-storage:set', async (event, key, value) => {
 
 ipcMain.handle('secure-storage:get', async (event, key) => {
   try {
+    validateStorageKey(key);
     const { safeStorage } = await import('electron');
     const userDataPath = app.getPath('userData');
     const keyFilePath = path.join(userDataPath, `${key}.enc`);
@@ -545,6 +568,7 @@ ipcMain.handle('secure-storage:get', async (event, key) => {
 
 ipcMain.handle('secure-storage:has', async (event, key) => {
   try {
+    validateStorageKey(key);
     const userDataPath = app.getPath('userData');
     const keyFilePath = path.join(userDataPath, `${key}.enc`);
     return fs.existsSync(keyFilePath);
@@ -556,6 +580,7 @@ ipcMain.handle('secure-storage:has', async (event, key) => {
 
 ipcMain.handle('secure-storage:delete', async (event, key) => {
   try {
+    validateStorageKey(key);
     const userDataPath = app.getPath('userData');
     const keyFilePath = path.join(userDataPath, `${key}.enc`);
 

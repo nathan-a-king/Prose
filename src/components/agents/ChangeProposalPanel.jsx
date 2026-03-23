@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import { useAgents } from '../../contexts/AgentContext'
+import { useDocumentProposals } from '../../contexts/AgentContext'
 import { CHANGE_CATEGORIES, CHANGE_PRIORITIES, CHANGE_TYPES } from '../../agents'
 
 export default function ChangeProposalPanel({ onClose, onApplyChange }) {
@@ -15,7 +15,7 @@ export default function ChangeProposalPanel({ onClose, onApplyChange }) {
     approveProposal,
     rejectProposal,
     approveAllFromAgent
-  } = useAgents()
+  } = useDocumentProposals()
 
   const [filter, setFilter] = useState('pending') // 'pending' | 'approved' | 'rejected' | 'all'
   const [categoryFilter, setCategoryFilter] = useState('all')

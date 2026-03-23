@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import { useAgents } from '../../contexts/AgentContext'
+import { useAgentExecution } from '../../contexts/AgentContext'
 import { AGENT_STAGES } from '../../agents'
 
 export default function AgentPanel({ onClose, onAgentSelected }) {
@@ -19,7 +19,7 @@ export default function AgentPanel({ onClose, onAgentSelected }) {
     currentStep,
     executionProgress,
     cancelExecution
-  } = useAgents()
+  } = useAgentExecution()
 
   const [selectedTab, setSelectedTab] = useState('agents') // 'agents' | 'pipelines'
   const [selectedStage, setSelectedStage] = useState('all')

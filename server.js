@@ -11,19 +11,7 @@ const __dirname = path.dirname(__filename)
 const app = express()
 const PORT = process.env.PORT || 8080
 
-// Determine build directory based on environment
-const isPackaged = __dirname.includes('app.asar')
-let buildPath;
-
-if (isPackaged) {
-  // In packaged app, build files are unpacked
-  // __dirname is already in the .unpacked directory when running
-  buildPath = path.join(__dirname, 'build')
-} else {
-  buildPath = path.join(__dirname, 'build')
-}
-
-console.log('Build path:', buildPath)
+const buildPath = path.join(__dirname, 'build')
 
 // Middleware
 app.use(express.json())
