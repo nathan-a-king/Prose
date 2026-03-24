@@ -1,18 +1,21 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import { makeCompletion, makeStreamingCompletion, estimateTokens, isApiKeyConfigured } from '../aiService'
 
-// Mock fetch globally
 const mockFetch = vi.fn()
-global.fetch = mockFetch
 
 describe('aiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
     // Reset storage mocks
     window.secureStorage = undefined
     localStorage.getItem.mockReturnValue(null)
     // Reset import.meta.env — use delete so the value is truly absent
     delete import.meta.env.VITE_OPENAI_API_KEY
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   describe('API key retrieval', () => {
