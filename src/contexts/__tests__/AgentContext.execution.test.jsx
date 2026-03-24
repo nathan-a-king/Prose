@@ -238,42 +238,44 @@ describe('AgentContext - Execution', () => {
     test('clears executionProgress after 3 seconds', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true })
 
-      mockOrchestrator.executeAgent.mockResolvedValue({ success: true })
+      try {
+        mockOrchestrator.executeAgent.mockResolvedValue({ success: true })
 
-      function ProgressComponent() {
-        const { initializeDocument, executeAgent, executionProgress } = useAgents()
+        function ProgressComponent() {
+          const { initializeDocument, executeAgent, executionProgress } = useAgents()
 
-        return (
-          <div>
-            <span data-testid="progress">{executionProgress ? 'yes' : 'no'}</span>
-            <button onClick={() => initializeDocument('Test')}>Initialize</button>
-            <button onClick={() => executeAgent('test-agent')}>Execute</button>
-          </div>
+          return (
+            <div>
+              <span data-testid="progress">{executionProgress ? 'yes' : 'no'}</span>
+              <button onClick={() => initializeDocument('Test')}>Initialize</button>
+              <button onClick={() => executeAgent('test-agent')}>Execute</button>
+            </div>
+          )
+        }
+
+        render(
+          <AgentProvider>
+            <ProgressComponent />
+          </AgentProvider>
         )
+
+        // Use fireEvent (not userEvent) with fake timers to avoid async timing conflicts
+        fireEvent.click(screen.getByText('Initialize'))
+        fireEvent.click(screen.getByText('Execute'))
+
+        await waitFor(() => {
+          expect(screen.getByTestId('progress')).toHaveTextContent('yes')
+        })
+
+        // Fast-forward 3 seconds to trigger the setTimeout(() => setExecutionProgress(null), 3000)
+        await vi.advanceTimersByTimeAsync(3000)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('progress')).toHaveTextContent('no')
+        })
+      } finally {
+        vi.useRealTimers()
       }
-
-      render(
-        <AgentProvider>
-          <ProgressComponent />
-        </AgentProvider>
-      )
-
-      // Use fireEvent (not userEvent) with fake timers to avoid async timing conflicts
-      fireEvent.click(screen.getByText('Initialize'))
-      fireEvent.click(screen.getByText('Execute'))
-
-      await waitFor(() => {
-        expect(screen.getByTestId('progress')).toHaveTextContent('yes')
-      })
-
-      // Fast-forward 3 seconds to trigger the setTimeout(() => setExecutionProgress(null), 3000)
-      await vi.advanceTimersByTimeAsync(3000)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('progress')).toHaveTextContent('no')
-      })
-
-      vi.useRealTimers()
     })
   })
 
