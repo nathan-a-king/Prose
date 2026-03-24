@@ -421,6 +421,12 @@ function createMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+// Check if target is within base using path-boundary check (not prefix string match)
+function isSubPath(base, target) {
+  const relative = path.relative(base, target);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 // Validate file paths for direct-access IPC handlers to prevent path traversal
 function validateFilePath(filePath) {
   if (typeof filePath !== 'string' || filePath.length === 0) {
@@ -439,13 +445,13 @@ function validateFilePath(filePath) {
   // Block known sensitive system directories
   const blockedPrefixes = ['/etc', '/System', '/usr', '/bin', '/sbin', '/var', '/private/etc'];
   for (const blocked of blockedPrefixes) {
-    if (resolved.startsWith(blocked)) {
+    if (isSubPath(blocked, resolved)) {
       throw new Error('Access to this path is not allowed');
     }
   }
 
-  // Must be under user's home directory
-  if (!allowedPrefixes.some(prefix => resolved.startsWith(prefix))) {
+  // Must be under one of the allowed user directories
+  if (!allowedPrefixes.some(prefix => isSubPath(prefix, resolved))) {
     throw new Error('File path must be within the user home directory');
   }
 

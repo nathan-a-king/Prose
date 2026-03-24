@@ -11,7 +11,6 @@ import { createContext, useContext, useState, useEffect, useCallback, useReducer
 import {
   createDocumentState,
   updateContent,
-  addChangeProposal as addChangeProposalFn,
   approveProposal as approveProposalFn,
   rejectProposal as rejectProposalFn,
   approveAllFromAgent as approveAllFromAgentFn,
@@ -36,6 +35,8 @@ function documentReducer(state, action) {
       return approveProposalFn(state, action.proposalId)
     case 'REJECT_PROPOSAL':
       return rejectProposalFn(state, action.proposalId, action.reason)
+    case 'APPROVE_ALL_FROM_AGENT':
+      return approveAllFromAgentFn(state, action.agentId).newState
     case 'MERGE_AGENT_RESULTS': {
       return {
         ...state,
@@ -207,11 +208,9 @@ export function AgentProvider({ children }) {
   const approveAllFromAgent = useCallback((agentId) => {
     if (!docState) return
     try {
-      const pending = getChangeProposals(docState, { agentId, status: 'pending' })
-      for (const proposal of pending) {
-        dispatch({ type: 'APPROVE_PROPOSAL', proposalId: proposal.id })
-      }
-      return pending.map(p => ({ proposalId: p.id, success: true }))
+      const { results } = approveAllFromAgentFn(docState, agentId)
+      dispatch({ type: 'APPROVE_ALL_FROM_AGENT', agentId })
+      return results
     } catch (error) {
       console.error('Failed to approve all proposals:', error)
       throw error
