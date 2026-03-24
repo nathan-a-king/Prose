@@ -105,12 +105,21 @@ export class PipelineExecutionResult {
 /**
  * Orchestrator class
  */
+const MAX_EXECUTION_HISTORY = 100
+
 export class Orchestrator {
   constructor() {
     this.pipelines = new Map()
     this.executionHistory = []
     this.currentExecution = null
     this.currentAbort = null // Track current stream abort function
+  }
+
+  _recordExecution(execution) {
+    this.executionHistory.push(execution)
+    if (this.executionHistory.length > MAX_EXECUTION_HISTORY) {
+      this.executionHistory = this.executionHistory.slice(-MAX_EXECUTION_HISTORY)
+    }
   }
 
   /**
@@ -202,7 +211,7 @@ export class Orchestrator {
       }
 
       execution.complete()
-      this.executionHistory.push(execution)
+      this._recordExecution(execution)
       this.currentExecution = null
       this.currentAbort = null
 
@@ -214,7 +223,7 @@ export class Orchestrator {
       }
 
       execution.fail(error.message)
-      this.executionHistory.push(execution)
+      this._recordExecution(execution)
       this.currentExecution = null
       this.currentAbort = null
       throw error
@@ -265,7 +274,7 @@ export class Orchestrator {
 
     if (this.currentExecution) {
       this.currentExecution.cancel()
-      this.executionHistory.push(this.currentExecution)
+      this._recordExecution(this.currentExecution)
       this.currentExecution = null
     }
   }

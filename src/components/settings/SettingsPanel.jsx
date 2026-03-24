@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { isApiKeyConfigured } from '../../services/agents/aiService'
 
 export default function SettingsPanel({ isOpen, onClose }) {
@@ -7,6 +7,7 @@ export default function SettingsPanel({ isOpen, onClose }) {
   const [hasExistingKey, setHasExistingKey] = useState(false)
   const [saveStatus, setSaveStatus] = useState('') // '', 'saving', 'saved', 'error'
   const [errorMessage, setErrorMessage] = useState('')
+  const panelRef = useRef(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -16,6 +17,52 @@ export default function SettingsPanel({ isOpen, onClose }) {
       setSaveStatus('')
       setErrorMessage('')
     }
+  }, [isOpen])
+
+  // Escape key handler
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  // Focus trap
+  useEffect(() => {
+    if (!isOpen || !panelRef.current) return
+
+    const panel = panelRef.current
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
+    // Focus first focusable element on open
+    const firstFocusable = panel.querySelector(focusableSelector)
+    if (firstFocusable) firstFocusable.focus()
+
+    const handleTab = (e) => {
+      if (e.key !== 'Tab') return
+
+      const focusableElements = panel.querySelectorAll(focusableSelector)
+      if (focusableElements.length === 0) return
+
+      const first = focusableElements[0]
+      const last = focusableElements[focusableElements.length - 1]
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleTab)
+    return () => document.removeEventListener('keydown', handleTab)
   }, [isOpen])
 
   const checkExistingKey = async () => {
@@ -94,14 +141,15 @@ export default function SettingsPanel({ isOpen, onClose }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Settings">
+      <div ref={panelRef} className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Settings</h2>
             <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              aria-label="Close settings"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
