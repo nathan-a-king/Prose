@@ -235,53 +235,51 @@ describe('AgentContext - Execution', () => {
       })
     })
 
-    // TODO: Fix timing issues with fake timers
-    test.skip('clears executionProgress after 3 seconds', async () => {
-      vi.useFakeTimers()
+    test('clears executionProgress after 3 seconds', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
 
-      mockOrchestrator.executeAgent.mockResolvedValue({ success: true })
+      try {
+        mockOrchestrator.executeAgent.mockResolvedValue({ success: true })
 
-      function ProgressComponent() {
-        const { initializeDocument, executeAgent, executionProgress } = useAgents()
+        function ProgressComponent() {
+          const { initializeDocument, executeAgent, executionProgress } = useAgents()
 
-        return (
-          <div>
-            <span data-testid="progress">{executionProgress ? 'yes' : 'no'}</span>
-            <button onClick={() => initializeDocument('Test')}>Initialize</button>
-            <button onClick={() => executeAgent('test-agent')}>Execute</button>
-          </div>
+          return (
+            <div>
+              <span data-testid="progress">{executionProgress ? 'yes' : 'no'}</span>
+              <button onClick={() => initializeDocument('Test')}>Initialize</button>
+              <button onClick={() => executeAgent('test-agent')}>Execute</button>
+            </div>
+          )
+        }
+
+        render(
+          <AgentProvider>
+            <ProgressComponent />
+          </AgentProvider>
         )
+
+        // Use fireEvent (not userEvent) with fake timers to avoid async timing conflicts
+        fireEvent.click(screen.getByText('Initialize'))
+        fireEvent.click(screen.getByText('Execute'))
+
+        await waitFor(() => {
+          expect(screen.getByTestId('progress')).toHaveTextContent('yes')
+        })
+
+        // Fast-forward 3 seconds to trigger the setTimeout(() => setExecutionProgress(null), 3000)
+        await vi.advanceTimersByTimeAsync(3000)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('progress')).toHaveTextContent('no')
+        })
+      } finally {
+        vi.useRealTimers()
       }
-
-      render(
-        <AgentProvider>
-          <ProgressComponent />
-        </AgentProvider>
-      )
-
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
-
-      // Run pending promises
-      await vi.runAllTimersAsync()
-
-      await waitFor(() => {
-        expect(screen.getByTestId('progress')).toHaveTextContent('yes')
-      })
-
-      // Fast-forward 3 seconds
-      await vi.advanceTimersByTimeAsync(3000)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('progress')).toHaveTextContent('no')
-      })
-
-      vi.restoreAllTimers()
     })
   })
 
-  // TODO: Fix timing issues with executePipeline tests
-  describe.skip('executePipeline', () => {
+  describe('executePipeline', () => {
     test('throws error when no document initialized', async () => {
       let caughtError = null
 
@@ -307,7 +305,7 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(caughtError).not.toBeNull()
@@ -316,15 +314,17 @@ describe('AgentContext - Execution', () => {
     })
 
     test('sets isExecuting to true during pipeline execution', async () => {
+      let resolveExecution
       mockOrchestrator.executePipeline.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve({ status: 'completed' }), 50))
+        () => new Promise(resolve => { resolveExecution = () => resolve({ status: 'completed' }) })
       )
 
       function PipelineComponent() {
-        const { initializeDocument, executePipeline, isExecuting } = useAgents()
+        const { initializeDocument, executePipeline, isExecuting, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <span data-testid="executing">{isExecuting ? 'yes' : 'no'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
             <button onClick={() => executePipeline('test-pipeline').catch(() => {})}>Execute</button>
@@ -338,26 +338,35 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('executing')).toHaveTextContent('yes')
       })
 
+      // Resolve the execution
+      resolveExecution()
+
       await waitFor(() => {
         expect(screen.getByTestId('executing')).toHaveTextContent('no')
-      }, { timeout: 200 })
+      })
     })
 
     test('passes callbacks to orchestrator', async () => {
       mockOrchestrator.executePipeline.mockResolvedValue({ status: 'completed' })
 
       function CallbackComponent() {
-        const { initializeDocument, executePipeline } = useAgents()
+        const { initializeDocument, executePipeline, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
             <button onClick={() => executePipeline('test-pipeline').catch(() => {})}>Execute</button>
           </div>
@@ -370,8 +379,13 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(mockOrchestrator.executePipeline).toHaveBeenCalledWith(
@@ -388,16 +402,16 @@ describe('AgentContext - Execution', () => {
 
     test('updates currentStep during pipeline execution', async () => {
       mockOrchestrator.executePipeline.mockImplementation((id, doc, options) => {
-        // Simulate step start
         options.onStepStart(0, { agentId: 'agent-1' })
         return Promise.resolve({ status: 'completed' })
       })
 
       function StepComponent() {
-        const { initializeDocument, executePipeline, currentStep } = useAgents()
+        const { initializeDocument, executePipeline, currentStep, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <span data-testid="step">{currentStep ? 'yes' : 'no'}</span>
             <span data-testid="step-index">{currentStep?.stepIndex ?? 'none'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
@@ -412,8 +426,13 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('step-index')).toHaveTextContent('0')
@@ -424,10 +443,11 @@ describe('AgentContext - Execution', () => {
       mockOrchestrator.executePipeline.mockResolvedValue({ status: 'completed' })
 
       function StepComponent() {
-        const { initializeDocument, executePipeline, currentStep } = useAgents()
+        const { initializeDocument, executePipeline, currentStep, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <span data-testid="step">{currentStep ? 'yes' : 'no'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
             <button onClick={() => executePipeline('test-pipeline').catch(() => {})}>Execute</button>
@@ -441,8 +461,13 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('step')).toHaveTextContent('no')
@@ -453,10 +478,11 @@ describe('AgentContext - Execution', () => {
       mockOrchestrator.executePipeline.mockRejectedValue(new Error('Pipeline failed'))
 
       function ErrorComponent() {
-        const { initializeDocument, executePipeline, executionProgress } = useAgents()
+        const { initializeDocument, executePipeline, executionProgress, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <span data-testid="status">{executionProgress?.status || 'none'}</span>
             <span data-testid="error">{executionProgress?.error || 'none'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
@@ -473,8 +499,13 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('status')).toHaveTextContent('failed')
