@@ -235,9 +235,8 @@ describe('AgentContext - Execution', () => {
       })
     })
 
-    // TODO: Fix timing issues with fake timers
-    test.skip('clears executionProgress after 3 seconds', async () => {
-      vi.useFakeTimers()
+    test('clears executionProgress after 3 seconds', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
 
       mockOrchestrator.executeAgent.mockResolvedValue({ success: true })
 
@@ -259,29 +258,26 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
-
-      // Run pending promises
-      await vi.runAllTimersAsync()
+      // Use fireEvent (not userEvent) with fake timers to avoid async timing conflicts
+      fireEvent.click(screen.getByText('Initialize'))
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('progress')).toHaveTextContent('yes')
       })
 
-      // Fast-forward 3 seconds
+      // Fast-forward 3 seconds to trigger the setTimeout(() => setExecutionProgress(null), 3000)
       await vi.advanceTimersByTimeAsync(3000)
 
       await waitFor(() => {
         expect(screen.getByTestId('progress')).toHaveTextContent('no')
       })
 
-      vi.restoreAllTimers()
+      vi.useRealTimers()
     })
   })
 
-  // TODO: Fix timing issues with executePipeline tests
-  describe.skip('executePipeline', () => {
+  describe('executePipeline', () => {
     test('throws error when no document initialized', async () => {
       let caughtError = null
 
@@ -307,7 +303,7 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(caughtError).not.toBeNull()
@@ -316,8 +312,9 @@ describe('AgentContext - Execution', () => {
     })
 
     test('sets isExecuting to true during pipeline execution', async () => {
+      let resolveExecution
       mockOrchestrator.executePipeline.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve({ status: 'completed' }), 50))
+        () => new Promise(resolve => { resolveExecution = () => resolve({ status: 'completed' }) })
       )
 
       function PipelineComponent() {
@@ -338,16 +335,23 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      // Wait for state to settle after initialization
+      await waitFor(() => {})
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('executing')).toHaveTextContent('yes')
       })
 
+      // Resolve the execution
+      resolveExecution()
+
       await waitFor(() => {
         expect(screen.getByTestId('executing')).toHaveTextContent('no')
-      }, { timeout: 200 })
+      })
     })
 
     test('passes callbacks to orchestrator', async () => {
@@ -370,8 +374,11 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {})
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(mockOrchestrator.executePipeline).toHaveBeenCalledWith(
@@ -388,7 +395,6 @@ describe('AgentContext - Execution', () => {
 
     test('updates currentStep during pipeline execution', async () => {
       mockOrchestrator.executePipeline.mockImplementation((id, doc, options) => {
-        // Simulate step start
         options.onStepStart(0, { agentId: 'agent-1' })
         return Promise.resolve({ status: 'completed' })
       })
@@ -412,8 +418,11 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {})
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('step-index')).toHaveTextContent('0')
@@ -441,8 +450,11 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {})
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('step')).toHaveTextContent('no')
@@ -473,8 +485,11 @@ describe('AgentContext - Execution', () => {
         </AgentProvider>
       )
 
-      screen.getByText('Initialize').click()
-      screen.getByText('Execute').click()
+      fireEvent.click(screen.getByText('Initialize'))
+
+      await waitFor(() => {})
+
+      fireEvent.click(screen.getByText('Execute'))
 
       await waitFor(() => {
         expect(screen.getByTestId('status')).toHaveTextContent('failed')
