@@ -324,6 +324,14 @@ export class DocumentState {
     this._state = createDocumentState(initialContent, metadata)
   }
 
+  getState() {
+    return this._state
+  }
+
+  setState(state) {
+    this._state = state
+  }
+
   getContent() {
     return this._state.content
   }
@@ -409,11 +417,11 @@ export class DocumentState {
 
   static import(data) {
     const state = new DocumentState()
-    state._state = {
+    state.setState({
       ...importState(data),
       // Preserve content from import data
       content: data.content
-    }
+    })
     return state
   }
 }

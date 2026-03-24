@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { documentApi } from '../services/documentApi'
 import { fileSystemApi, setupMenuListeners } from '../services/fileSystemApi'
 
-export function useDocumentPersistence({ text, setText, addToRecentFiles }) {
+export function useDocumentPersistence({ text, setText, addToRecentFiles, removeFromRecent }) {
   const [currentDocId, setCurrentDocId] = useState(null)
   const [currentFilePath, setCurrentFilePath] = useState(null)
   const [saveStatus, setSaveStatus] = useState('')
@@ -12,6 +12,11 @@ export function useDocumentPersistence({ text, setText, addToRecentFiles }) {
   const [editingTitle, setEditingTitle] = useState('')
   const autoSaveTimeout = useRef(null)
   const saveDocumentRef = useRef(null)
+  const documentsRef = useRef(documents)
+
+  useEffect(() => {
+    documentsRef.current = documents
+  }, [documents])
 
   // Mark loading complete on mount (recent files loaded separately)
   useEffect(() => {
@@ -34,11 +39,7 @@ export function useDocumentPersistence({ text, setText, addToRecentFiles }) {
       const preview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
       let savedDoc
       if (currentDocId) {
-        let existingDoc
-        setDocuments(docs => {
-          existingDoc = docs.find(doc => doc.id === currentDocId)
-          return docs
-        })
+        const existingDoc = documentsRef.current.find(doc => doc.id === currentDocId)
 
         const shouldUpdateTitle = !existingDoc?.title_manually_set
         const title = shouldUpdateTitle
@@ -128,8 +129,11 @@ export function useDocumentPersistence({ text, setText, addToRecentFiles }) {
       addToRecentFiles(filePath, content)
     } catch (error) {
       console.error('Failed to open recent file:', error)
+      if (removeFromRecent) {
+        removeFromRecent(filePath)
+      }
     }
-  }, [setText, addToRecentFiles])
+  }, [setText, addToRecentFiles, removeFromRecent])
 
   const saveFileAs = useCallback(async () => {
     if (!fileSystemApi.isAvailable()) return

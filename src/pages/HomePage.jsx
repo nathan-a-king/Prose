@@ -3,7 +3,8 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useAgents } from '../contexts/AgentContext'
 import { fileSystemApi } from '../services/fileSystemApi'
 import SyntaxHighlighter from '../components/SyntaxHighlighter'
-import { usePanelManager, PANELS } from '../hooks/usePanelManager'
+import { PANELS } from '../hooks/usePanelManager'
+import { usePanelManager } from '../hooks/usePanelManager'
 import { useRecentFiles } from '../hooks/useRecentFiles'
 import { useDocumentPersistence } from '../hooks/useDocumentPersistence'
 import { useEditorFormatting } from '../hooks/useEditorFormatting'
@@ -32,44 +33,24 @@ function HomePage() {
   const previewModeScrollRef = useRef(0)
   const previousProposalCountRef = useRef(0)
 
-  // Hooks
-  const panels = usePanelManager()
-  const recentFiles = useRecentFiles()
+  // Hooks — destructure stable callbacks to avoid object-reference churn in deps
+  const { togglePanel, openPanel, closePanel, isPanelOpen } = usePanelManager()
+  const { recentFiles, addToRecentFiles, togglePin, removeFromRecent } = useRecentFiles()
   const persistence = useDocumentPersistence({
     text,
     setText,
-    addToRecentFiles: recentFiles.addToRecentFiles
+    addToRecentFiles,
+    removeFromRecent
   })
   const formatting = useEditorFormatting(textareaRef, text, setText)
-
-  // Handle view mode changes with scroll position preservation
-  const handleViewModeChange = useCallback((newMode) => {
-    if (newMode === viewMode) return
-
-    const scrollTop = window.scrollY || document.documentElement.scrollTop
-    const scrollHeight = document.documentElement.scrollHeight
-    const clientHeight = document.documentElement.clientHeight
-    const maxScroll = scrollHeight - clientHeight
-
-    if (maxScroll > 0) {
-      const percent = scrollTop / maxScroll
-      if (viewMode === 'edit') {
-        editModeScrollRef.current = percent
-      } else {
-        previewModeScrollRef.current = percent
-      }
-    }
-
-    setViewMode(newMode)
-  }, [viewMode])
 
   const handleAgentSelected = useCallback((agentId) => {
     setSelectedAgent(agentId)
     if (!isExecuting) {
       executeAgent(agentId)
     }
-    panels.closePanel()
-  }, [setSelectedAgent, isExecuting, executeAgent, panels])
+    closePanel()
+  }, [setSelectedAgent, isExecuting, executeAgent, closePanel])
 
   // Set platform-specific padding for macOS traffic light buttons
   useEffect(() => {
@@ -89,11 +70,11 @@ function HomePage() {
     const previousCount = previousProposalCountRef.current
 
     if (currentProposalCount > previousCount && currentProposalCount > 0) {
-      panels.openPanel(PANELS.PROPOSAL)
+      openPanel(PANELS.PROPOSAL)
     }
 
     previousProposalCountRef.current = currentProposalCount
-  }, [changeProposals, panels])
+  }, [changeProposals, openPanel])
 
   // Initialize agent document state only when document changes
   const lastDocIdRef = useRef(null)
@@ -181,34 +162,19 @@ function HomePage() {
     }
   }, [cancelExecution])
 
-  // Wrapper callbacks for panel-aware document operations
-  const handleLoadDocument = useCallback((doc) => {
-    persistence.loadDocument(doc)
-    panels.closePanel()
-    editModeScrollRef.current = 0
-    previewModeScrollRef.current = 0
-  }, [persistence, panels])
-
-  const handleNewDocument = useCallback(() => {
-    persistence.newDocument()
-    panels.closePanel()
-    editModeScrollRef.current = 0
-    previewModeScrollRef.current = 0
-  }, [persistence, panels])
-
   const handleOpenFile = useCallback(async () => {
     await persistence.openFile()
-    panels.closePanel()
+    closePanel()
     editModeScrollRef.current = 0
     previewModeScrollRef.current = 0
-  }, [persistence, panels])
+  }, [persistence.openFile, closePanel])
 
   const handleOpenRecentFile = useCallback(async (filePath) => {
     await persistence.openRecentFile(filePath)
-    panels.closePanel()
+    closePanel()
     editModeScrollRef.current = 0
     previewModeScrollRef.current = 0
-  }, [persistence, panels])
+  }, [persistence.openRecentFile, closePanel])
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-neutral-800">
@@ -218,7 +184,7 @@ function HomePage() {
           {/* Left section */}
           <div className="flex items-center gap-4 mac-window-padding">
             <button
-              onClick={() => panels.togglePanel(PANELS.SIDEBAR)}
+              onClick={() => togglePanel(PANELS.SIDEBAR)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
               title="Toggle recent files"
             >
@@ -292,7 +258,7 @@ function HomePage() {
 
           {/* Settings toggle */}
           <button
-            onClick={() => panels.openPanel(PANELS.SETTINGS)}
+            onClick={() => openPanel(PANELS.SETTINGS)}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             title="Settings"
           >
@@ -306,9 +272,9 @@ function HomePage() {
 
           {/* Agent Pipeline toggle */}
           <button
-            onClick={() => panels.togglePanel(PANELS.AGENT)}
+            onClick={() => togglePanel(PANELS.AGENT)}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ${
-              panels.isPanelOpen(PANELS.AGENT) ? 'bg-blue-100 dark:bg-blue-900/20' : ''
+              isPanelOpen(PANELS.AGENT) ? 'bg-blue-100 dark:bg-blue-900/20' : ''
             }`}
             title="Toggle Agent Pipeline"
           >
@@ -319,9 +285,9 @@ function HomePage() {
 
           {/* Change Proposals toggle */}
           <button
-            onClick={() => panels.togglePanel(PANELS.PROPOSAL)}
+            onClick={() => togglePanel(PANELS.PROPOSAL)}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors relative ${
-              panels.isPanelOpen(PANELS.PROPOSAL) ? 'bg-blue-100 dark:bg-blue-900/20' : ''
+              isPanelOpen(PANELS.PROPOSAL) ? 'bg-blue-100 dark:bg-blue-900/20' : ''
             }`}
             title="Toggle Change Proposals"
           >
@@ -340,24 +306,24 @@ function HomePage() {
       <div className="p-8 relative bg-gray-100 dark:bg-neutral-800 min-h-full pt-24">
         {/* Recent Files Sidebar */}
         <RecentFilesSidebar
-          recentFiles={recentFiles.recentFiles}
-          isOpen={panels.isPanelOpen(PANELS.SIDEBAR)}
+          recentFiles={recentFiles}
+          isOpen={isPanelOpen(PANELS.SIDEBAR)}
           currentFilePath={persistence.currentFilePath}
           loadingDocuments={persistence.loadingDocuments}
           onOpenFile={handleOpenFile}
           onOpenRecentFile={handleOpenRecentFile}
-          onTogglePin={recentFiles.togglePin}
-          onRemoveFile={recentFiles.removeFromRecent}
+          onTogglePin={togglePin}
+          onRemoveFile={removeFromRecent}
         />
 
         {/* Agent Panel */}
         <div className={`fixed top-24 left-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
-          panels.isPanelOpen(PANELS.AGENT) ? 'translate-x-0' : '-translate-x-[28rem]'
+          isPanelOpen(PANELS.AGENT) ? 'translate-x-0' : '-translate-x-[28rem]'
         }`}>
-          {panels.isPanelOpen(PANELS.AGENT) && (
+          {isPanelOpen(PANELS.AGENT) && (
             <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading...</div>}>
               <AgentPanel
-                onClose={panels.closePanel}
+                onClose={closePanel}
                 onAgentSelected={handleAgentSelected}
               />
             </Suspense>
@@ -366,12 +332,12 @@ function HomePage() {
 
         {/* Change Proposal Panel */}
         <div className={`fixed top-24 right-8 bottom-8 w-96 bg-white dark:bg-neutral-700 shadow-xl rounded-lg transform transition-transform duration-300 ease-in-out z-20 ${
-          panels.isPanelOpen(PANELS.PROPOSAL) ? 'translate-x-0' : 'translate-x-[28rem]'
+          isPanelOpen(PANELS.PROPOSAL) ? 'translate-x-0' : 'translate-x-[28rem]'
         }`}>
-          {panels.isPanelOpen(PANELS.PROPOSAL) && (
+          {isPanelOpen(PANELS.PROPOSAL) && (
             <Suspense fallback={<div className="p-4 text-gray-500 dark:text-gray-400">Loading...</div>}>
               <ChangeProposalPanel
-                onClose={panels.closePanel}
+                onClose={closePanel}
                 onApplyChange={(newContent) => setText(newContent)}
               />
             </Suspense>
@@ -379,11 +345,11 @@ function HomePage() {
         </div>
 
         {/* Settings Panel */}
-        {panels.isPanelOpen(PANELS.SETTINGS) && (
+        {isPanelOpen(PANELS.SETTINGS) && (
           <Suspense fallback={null}>
             <SettingsPanel
               isOpen={true}
-              onClose={panels.closePanel}
+              onClose={closePanel}
             />
           </Suspense>
         )}

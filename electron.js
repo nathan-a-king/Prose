@@ -32,24 +32,38 @@ function findNodeBinary() {
     '/usr/local/bin/node',
     '/opt/homebrew/bin/node',
     '/usr/bin/node',
-    // Try to find via which command with extended PATH
-    process.env.HOME + '/.nvm/versions/node/v22.17.0/bin/node'
   ];
-  
+
+  // Dynamically find NVM/fnm/volta paths instead of hardcoding a version
+  if (process.env.NVM_DIR) {
+    const nvmCurrent = path.join(process.env.NVM_DIR, 'current', 'bin', 'node');
+    commonPaths.unshift(nvmCurrent);
+  }
+  if (process.env.FNM_DIR) {
+    const fnmCurrent = path.join(process.env.FNM_DIR, 'current', 'bin', 'node');
+    commonPaths.unshift(fnmCurrent);
+  }
+  if (process.env.VOLTA_HOME) {
+    const voltaBin = path.join(process.env.VOLTA_HOME, 'bin', 'node');
+    commonPaths.unshift(voltaBin);
+  }
+
+  // Build an extended PATH from known manager locations
+  const extraPaths = commonPaths.map(p => path.dirname(p)).join(':');
+
   // First try the current process.env PATH
   try {
-    const result = execSync('which node', { 
-      env: { 
-        ...process.env, 
-        PATH: process.env.PATH + ':/usr/local/bin:/opt/homebrew/bin:' + process.env.HOME + '/.nvm/versions/node/v22.17.0/bin'
+    const result = execSync('which node', {
+      env: {
+        ...process.env,
+        PATH: process.env.PATH + ':' + extraPaths
       }
     }).toString().trim();
     if (result && fs.existsSync(result)) {
-      console.log('Found node via which:', result);
       return result;
     }
   } catch (e) {
-    console.log('which command failed, trying common paths');
+    // which command failed, try common paths
   }
   
   // Try common paths
@@ -151,7 +165,7 @@ function startServer() {
         ...process.env, 
         NODE_ENV: 'production',
         USER_DATA_PATH: userDataPath,
-        PATH: process.env.PATH + ':/usr/local/bin:/opt/homebrew/bin:' + process.env.HOME + '/.nvm/versions/node/v22.17.0/bin'
+        PATH: process.env.PATH + ':' + path.dirname(nodeBinary) + ':/usr/local/bin:/opt/homebrew/bin'
       }
     });
 
@@ -199,7 +213,7 @@ function startServer() {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
-    height: 1960,
+    height: 800,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -407,6 +421,43 @@ function createMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+// Check if target is within base using path-boundary check (not prefix string match)
+function isSubPath(base, target) {
+  const relative = path.relative(base, target);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+// Validate file paths for direct-access IPC handlers to prevent path traversal
+function validateFilePath(filePath) {
+  if (typeof filePath !== 'string' || filePath.length === 0) {
+    throw new Error('Invalid file path');
+  }
+
+  const resolved = path.resolve(filePath);
+  const homeDir = app.getPath('home');
+  const documentsDir = app.getPath('documents');
+  const desktopDir = app.getPath('desktop');
+  const downloadsDir = app.getPath('downloads');
+  const userDataDir = app.getPath('userData');
+
+  const allowedPrefixes = [homeDir, documentsDir, desktopDir, downloadsDir, userDataDir];
+
+  // Block known sensitive system directories
+  const blockedPrefixes = ['/etc', '/System', '/usr', '/bin', '/sbin', '/var', '/private/etc'];
+  for (const blocked of blockedPrefixes) {
+    if (isSubPath(blocked, resolved)) {
+      throw new Error('Access to this path is not allowed');
+    }
+  }
+
+  // Must be under one of the allowed user directories
+  if (!allowedPrefixes.some(prefix => isSubPath(prefix, resolved))) {
+    throw new Error('File path must be within the user home directory');
+  }
+
+  return resolved;
+}
+
 // IPC Handlers for file system operations
 ipcMain.handle('file:open', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -433,7 +484,8 @@ ipcMain.handle('file:open', async () => {
 
 ipcMain.handle('file:read', async (event, filePath) => {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const safePath = validateFilePath(filePath);
+    const content = fs.readFileSync(safePath, 'utf-8');
     return content;
   } catch (error) {
     console.error('Error reading file:', error);
@@ -443,8 +495,9 @@ ipcMain.handle('file:read', async (event, filePath) => {
 
 ipcMain.handle('file:save', async (event, filePath, content) => {
   try {
-    fs.writeFileSync(filePath, content, 'utf-8');
-    return { success: true, filePath };
+    const safePath = validateFilePath(filePath);
+    fs.writeFileSync(safePath, content, 'utf-8');
+    return { success: true, filePath: safePath };
   } catch (error) {
     console.error('Error saving file:', error);
     throw new Error(`Failed to save file: ${error.message}`);
@@ -476,10 +529,11 @@ ipcMain.handle('file:saveAs', async (event, content, defaultName) => {
 
 ipcMain.handle('file:getInfo', async (event, filePath) => {
   try {
-    const stats = fs.statSync(filePath);
+    const safePath = validateFilePath(filePath);
+    const stats = fs.statSync(safePath);
     return {
-      name: path.basename(filePath),
-      path: filePath,
+      name: path.basename(safePath),
+      path: safePath,
       size: stats.size,
       modifiedAt: stats.mtime
     };
@@ -490,12 +544,25 @@ ipcMain.handle('file:getInfo', async (event, filePath) => {
 });
 
 ipcMain.handle('file:exists', async (event, filePath) => {
-  return fs.existsSync(filePath);
+  try {
+    const safePath = validateFilePath(filePath);
+    return fs.existsSync(safePath);
+  } catch (error) {
+    return false;
+  }
 });
+
+// Validate storage key to prevent path traversal (e.g. ../../etc/foo)
+function validateStorageKey(key) {
+  if (typeof key !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(key)) {
+    throw new Error('Invalid storage key');
+  }
+}
 
 // Secure Storage IPC Handlers for API key encryption
 ipcMain.handle('secure-storage:set', async (event, key, value) => {
   try {
+    validateStorageKey(key);
     const { safeStorage } = await import('electron');
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('Encryption not available on this system');
@@ -519,6 +586,7 @@ ipcMain.handle('secure-storage:set', async (event, key, value) => {
 
 ipcMain.handle('secure-storage:get', async (event, key) => {
   try {
+    validateStorageKey(key);
     const { safeStorage } = await import('electron');
     const userDataPath = app.getPath('userData');
     const keyFilePath = path.join(userDataPath, `${key}.enc`);
@@ -545,6 +613,7 @@ ipcMain.handle('secure-storage:get', async (event, key) => {
 
 ipcMain.handle('secure-storage:has', async (event, key) => {
   try {
+    validateStorageKey(key);
     const userDataPath = app.getPath('userData');
     const keyFilePath = path.join(userDataPath, `${key}.enc`);
     return fs.existsSync(keyFilePath);
@@ -556,6 +625,7 @@ ipcMain.handle('secure-storage:has', async (event, key) => {
 
 ipcMain.handle('secure-storage:delete', async (event, key) => {
   try {
+    validateStorageKey(key);
     const userDataPath = app.getPath('userData');
     const keyFilePath = path.join(userDataPath, `${key}.enc`);
 
