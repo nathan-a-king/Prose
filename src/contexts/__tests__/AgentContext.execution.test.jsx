@@ -320,10 +320,11 @@ describe('AgentContext - Execution', () => {
       )
 
       function PipelineComponent() {
-        const { initializeDocument, executePipeline, isExecuting } = useAgents()
+        const { initializeDocument, executePipeline, isExecuting, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <span data-testid="executing">{isExecuting ? 'yes' : 'no'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
             <button onClick={() => executePipeline('test-pipeline').catch(() => {})}>Execute</button>
@@ -339,8 +340,9 @@ describe('AgentContext - Execution', () => {
 
       fireEvent.click(screen.getByText('Initialize'))
 
-      // Wait for state to settle after initialization
-      await waitFor(() => {})
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
 
       fireEvent.click(screen.getByText('Execute'))
 
@@ -360,10 +362,11 @@ describe('AgentContext - Execution', () => {
       mockOrchestrator.executePipeline.mockResolvedValue({ status: 'completed' })
 
       function CallbackComponent() {
-        const { initializeDocument, executePipeline } = useAgents()
+        const { initializeDocument, executePipeline, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
             <button onClick={() => executePipeline('test-pipeline').catch(() => {})}>Execute</button>
           </div>
@@ -378,7 +381,9 @@ describe('AgentContext - Execution', () => {
 
       fireEvent.click(screen.getByText('Initialize'))
 
-      await waitFor(() => {})
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
 
       fireEvent.click(screen.getByText('Execute'))
 
@@ -402,10 +407,11 @@ describe('AgentContext - Execution', () => {
       })
 
       function StepComponent() {
-        const { initializeDocument, executePipeline, currentStep } = useAgents()
+        const { initializeDocument, executePipeline, currentStep, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <span data-testid="step">{currentStep ? 'yes' : 'no'}</span>
             <span data-testid="step-index">{currentStep?.stepIndex ?? 'none'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
@@ -422,7 +428,9 @@ describe('AgentContext - Execution', () => {
 
       fireEvent.click(screen.getByText('Initialize'))
 
-      await waitFor(() => {})
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
 
       fireEvent.click(screen.getByText('Execute'))
 
@@ -435,10 +443,11 @@ describe('AgentContext - Execution', () => {
       mockOrchestrator.executePipeline.mockResolvedValue({ status: 'completed' })
 
       function StepComponent() {
-        const { initializeDocument, executePipeline, currentStep } = useAgents()
+        const { initializeDocument, executePipeline, currentStep, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <span data-testid="step">{currentStep ? 'yes' : 'no'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
             <button onClick={() => executePipeline('test-pipeline').catch(() => {})}>Execute</button>
@@ -454,7 +463,9 @@ describe('AgentContext - Execution', () => {
 
       fireEvent.click(screen.getByText('Initialize'))
 
-      await waitFor(() => {})
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
 
       fireEvent.click(screen.getByText('Execute'))
 
@@ -467,10 +478,11 @@ describe('AgentContext - Execution', () => {
       mockOrchestrator.executePipeline.mockRejectedValue(new Error('Pipeline failed'))
 
       function ErrorComponent() {
-        const { initializeDocument, executePipeline, executionProgress } = useAgents()
+        const { initializeDocument, executePipeline, executionProgress, documentContent } = useAgents()
 
         return (
           <div>
+            {documentContent !== null && <span data-testid="initialized" />}
             <span data-testid="status">{executionProgress?.status || 'none'}</span>
             <span data-testid="error">{executionProgress?.error || 'none'}</span>
             <button onClick={() => initializeDocument('Test')}>Initialize</button>
@@ -489,7 +501,9 @@ describe('AgentContext - Execution', () => {
 
       fireEvent.click(screen.getByText('Initialize'))
 
-      await waitFor(() => {})
+      await waitFor(() => {
+        expect(screen.getByTestId('initialized')).toBeInTheDocument()
+      })
 
       fireEvent.click(screen.getByText('Execute'))
 
