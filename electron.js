@@ -27,56 +27,49 @@ app.setAboutPanelOptions({
 });
 
 function findNodeBinary() {
-  // Common Node.js locations to try
-  const commonPaths = [
-    '/usr/local/bin/node',
-    '/opt/homebrew/bin/node',
-    '/usr/bin/node',
-  ];
+  const home = process.env.HOME || require('os').homedir();
 
-  // Dynamically find NVM/fnm/volta paths instead of hardcoding a version
-  if (process.env.NVM_DIR) {
-    const nvmCurrent = path.join(process.env.NVM_DIR, 'current', 'bin', 'node');
-    commonPaths.unshift(nvmCurrent);
-  }
-  if (process.env.FNM_DIR) {
-    const fnmCurrent = path.join(process.env.FNM_DIR, 'current', 'bin', 'node');
-    commonPaths.unshift(fnmCurrent);
-  }
-  if (process.env.VOLTA_HOME) {
-    const voltaBin = path.join(process.env.VOLTA_HOME, 'bin', 'node');
-    commonPaths.unshift(voltaBin);
-  }
+  // Probe version manager directories directly — env vars like NVM_DIR
+  // are not available when launched from Finder/Dock/Spotlight.
+  const commonPaths = [];
 
-  // Build an extended PATH from known manager locations
-  const extraPaths = commonPaths.map(p => path.dirname(p)).join(':');
-
-  // First try the current process.env PATH
+  // NVM: check current symlink first, then scan installed versions
+  const nvmDir = process.env.NVM_DIR || path.join(home, '.nvm');
+  commonPaths.push(path.join(nvmDir, 'current', 'bin', 'node'));
   try {
-    const result = execSync('which node', {
-      env: {
-        ...process.env,
-        PATH: process.env.PATH + ':' + extraPaths
+    const versionsDir = path.join(nvmDir, 'versions', 'node');
+    if (fs.existsSync(versionsDir)) {
+      const versions = fs.readdirSync(versionsDir).sort().reverse();
+      for (const ver of versions) {
+        commonPaths.push(path.join(versionsDir, ver, 'bin', 'node'));
       }
-    }).toString().trim();
-    if (result && fs.existsSync(result)) {
-      return result;
     }
-  } catch (e) {
-    // which command failed, try common paths
-  }
-  
-  // Try common paths
+  } catch (e) { /* ignore */ }
+
+  // fnm
+  const fnmDir = process.env.FNM_DIR || path.join(home, '.fnm');
+  commonPaths.push(path.join(fnmDir, 'current', 'bin', 'node'));
+
+  // volta
+  const voltaHome = process.env.VOLTA_HOME || path.join(home, '.volta');
+  commonPaths.push(path.join(voltaHome, 'bin', 'node'));
+
+  // System locations
+  commonPaths.push('/opt/homebrew/bin/node');
+  commonPaths.push('/usr/local/bin/node');
+  commonPaths.push('/usr/bin/node');
+
+  // Try each path
   for (const nodePath of commonPaths) {
     if (fs.existsSync(nodePath)) {
       console.log('Found node at:', nodePath);
       return nodePath;
     }
   }
-  
-  // Fallback to just 'node' and hope it's in PATH
-  console.log('Using fallback: node');
-  return 'node';
+
+  // No node binary found — return null so caller can show an error
+  console.error('Could not find a Node.js binary');
+  return null;
 }
 
 function animateWindowToCenter(window) {
@@ -153,12 +146,20 @@ function startServer() {
     console.log('Working dir:', workingDir);
     
     const nodeBinary = findNodeBinary();
+    if (!nodeBinary) {
+      dialog.showErrorBox(
+        'Node.js not found',
+        'Prose requires Node.js to run. Please install Node.js and restart the app.\n\nhttps://nodejs.org'
+      );
+      app.quit();
+      return Promise.reject(new Error('Node.js not found'));
+    }
     console.log('Using node binary:', nodeBinary);
-    
+
     // Get userData path for storing database
     const userDataPath = app.getPath('userData');
     console.log('User data path:', userDataPath);
-    
+
     serverProcess = spawn(nodeBinary, [serverPath], {
       cwd: workingDir,
       env: { 
