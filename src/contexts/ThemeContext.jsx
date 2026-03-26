@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
+import darkThemeHref from 'highlight.js/styles/atom-one-dark.css?url'
 
 const ThemeContext = createContext()
 
@@ -8,6 +9,8 @@ export function ThemeProvider({ children }) {
     if (saved) return saved === 'dark'
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
+
+  const darkThemeLinkRef = useRef(null)
 
   useEffect(() => {
     const root = document.documentElement
@@ -20,15 +23,19 @@ export function ThemeProvider({ children }) {
     }
   }, [isDarkMode])
 
-  // Dynamically load highlight.js theme based on mode
+  // Toggle highlight.js dark theme via a <link> element
   useEffect(() => {
-    const loadHighlightTheme = async () => {
-      if (isDarkMode) {
-        await import('highlight.js/styles/atom-one-dark.css')
-      }
-      // Light theme is already imported in index.css, no need to import again
+    if (!darkThemeLinkRef.current) {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = darkThemeHref
+      link.id = 'hljs-dark-theme'
+      link.disabled = !isDarkMode
+      document.head.appendChild(link)
+      darkThemeLinkRef.current = link
+    } else {
+      darkThemeLinkRef.current.disabled = !isDarkMode
     }
-    loadHighlightTheme()
   }, [isDarkMode])
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode)
